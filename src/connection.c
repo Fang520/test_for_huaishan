@@ -812,7 +812,7 @@ static int create_down_channel()
 
 }
 
-int conn_send_msg(char* buf, int len)
+int conn_send_msg(msg_header_t* header, char* states, char* audio_data, int audio_len)
 {
 	submit_request(&connection, &req);
 }
