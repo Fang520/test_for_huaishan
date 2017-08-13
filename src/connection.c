@@ -24,6 +24,7 @@
 
 #include "token.h"
 #include "verbose.h"
+#include "connection.h"
 
 enum { IO_NONE, WANT_READ, WANT_WRITE };
 
@@ -170,11 +171,12 @@ static int on_frame_send_callback(nghttp2_session *session,
 {
     size_t i;
     (void)user_data;
+	nghttp2_nv* nva;
 
     switch (frame->hd.type)
     {
     case NGHTTP2_HEADERS:
-        const nghttp2_nv *nva = frame->headers.nva;
+        nva = frame->headers.nva;
         printf("[INFO] C ----------------------------> S (HEADERS)\n");
         for (i = 0; i < frame->headers.nvlen; ++i)
         {
@@ -206,7 +208,6 @@ static int on_frame_recv_callback(nghttp2_session *session,
         if (frame->headers.cat == NGHTTP2_HCAT_RESPONSE)
         {
             const nghttp2_nv *nva = frame->headers.nva;
-            struct Request *req;
             printf("[INFO] C <---------------------------- S (HEADERS)\n");
             for (i = 0; i < frame->headers.nvlen; ++i)
             {
@@ -236,7 +237,6 @@ static int on_data_chunk_recv_callback(nghttp2_session *session, uint8_t flags,
                                        int32_t stream_id, const uint8_t *data,
                                        size_t len, void *user_data)
 {
-    struct Request *req;
     (void)flags;
     (void)user_data;
 
@@ -258,21 +258,17 @@ static int on_data_chunk_recv_callback(nghttp2_session *session, uint8_t flags,
 static int on_stream_close_callback(nghttp2_session *session, int32_t stream_id,
                                     uint32_t error_code, void *user_data)
 {
-    struct Request *req;
     (void)error_code;
     (void)user_data;
 
-    req = nghttp2_session_get_stream_user_data(session, stream_id);
-    if (req)
-    {
-        int rv;
-        rv = nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
+	int rv;
+	printf("=================== close\n");
+	rv = nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
 
-        if (rv != 0)
-        {
-            diec("nghttp2_session_terminate_session", rv);
-        }
-    }
+	if (rv != 0)
+	{
+		diec("nghttp2_session_terminate_session", rv);
+	}
     return 0;
 }
 
@@ -410,157 +406,11 @@ static int need_send_or_recv(int* send, int* recv)
 {
 	*send = 0;
 	*recv = 0;
-    if (nghttp2_session_want_read(connection->session) || connection->want_io == WANT_READ)
+    if (nghttp2_session_want_read(connection.session) || connection.want_io == WANT_READ)
         *recv = 1;
-    if (nghttp2_session_want_write(connection->session) || connection->want_io == WANT_WRITE)
+    if (nghttp2_session_want_write(connection.session) || connection.want_io == WANT_WRITE)
         *send = 1;
 	return *recv + *send;
-}
-
-static void epoll_thread(const struct URI *uri)
-{
-    nghttp2_session_callbacks *callbacks;
-    int fd;
-    SSL_CTX *ssl_ctx;
-    SSL *ssl;
-    struct Request req;
-    int rv;
-
-    request_init(&req, uri);
-
-    /* Establish connection and setup SSL */
-    fd = connect_to(req.host, req.port);
-    if (fd == -1)
-    {
-        die("Could not open file descriptor");
-    }
-    ssl_ctx = SSL_CTX_new(SSLv23_client_method());
-    if (ssl_ctx == NULL)
-    {
-        dief("SSL_CTX_new", ERR_error_string(ERR_get_error(), NULL));
-    }
-    init_ssl_ctx(ssl_ctx);
-    ssl = SSL_new(ssl_ctx);
-    if (ssl == NULL)
-    {
-        dief("SSL_new", ERR_error_string(ERR_get_error(), NULL));
-    }
-    /* To simplify the program, we perform SSL/TLS handshake in blocking
-       I/O. */
-    ssl_handshake(ssl, fd);
-
-    connection.ssl = ssl;
-    connection.want_io = IO_NONE;
-
-    /* Here make file descriptor non-block */
-    make_non_block(fd);
-    set_tcp_nodelay(fd);
-
-    printf("[INFO] SSL/TLS handshake completed\n");
-
-    rv = nghttp2_session_callbacks_new(&callbacks);
-
-    if (rv != 0)
-    {
-        diec("nghttp2_session_callbacks_new", rv);
-    }
-
-    setup_nghttp2_callbacks(callbacks);
-
-    rv = nghttp2_session_client_new(&connection.session, callbacks, &connection);
-
-    nghttp2_session_callbacks_del(callbacks);
-
-    if (rv != 0)
-    {
-        diec("nghttp2_session_client_new", rv);
-    }
-
-    rv = nghttp2_submit_settings(connection.session, NGHTTP2_FLAG_NONE, NULL, 0);
-
-    if (rv != 0)
-    {
-        diec("nghttp2_submit_settings", rv);
-    }
-
-	create_down_channel();
-
-    
-    /* Event loop */
-	struct pollfd pollfds[1];
-	int nfds;
-	int ret;
-	pollfds[0].fd = fd;
-    while (epoll_thread_quit == 0)
-    {
-		int send = 0;
-		int recv = 0;
-		if (need_send_or_recv(&send, &recv))
-		{
-			pollfd->events = 0;
-			if (send)
-				pollfd->events |= POLLOUT;
-			if (recv)
-				pollfd->events |= POLLIN;
-
-			nfds = poll(pollfds, 1, -1);
-	        if (nfds == -1)
-	        {
-	            dief("poll", strerror(errno));
-	        }
-			if (pollfds[0].revents & POLLOUT)
-			{
-				ret = nghttp2_session_send(connection->session);
-				if (ret != 0)
-				{
-					diec("nghttp2_session_send", ret);
-				}				
-			}	
-			if (pollfds[0].revents & POLLIN)
-			{
-				ret = nghttp2_session_recv(connection->session);
-				if (ret != 0)
-				{
-					diec("nghttp2_session_recv", ret);
-				}				
-			}
-	        if ((pollfds[0].revents & POLLHUP) || (pollfds[0].revents & POLLERR))
-	        {
-	            die("Connection error");
-	        }			
-		}
-		else
-		{
-			pollfd->events = 0;
-			pollfd->events = POLLIN;
-			nfds = poll(pollfds, 1, 200);
-	        if (nfds == -1)
-	        {
-	            dief("poll in idle", strerror(errno));
-	        }
-			else if (nfds > 0)
-			{
-				ret = nghttp2_session_recv(connection->session);
-				if (ret != 0)
-				{
-					diec("nghttp2_session_recv in idle", ret);
-				}					
-			}
-			else if ((pollfds[0].revents & POLLHUP) || (pollfds[0].revents & POLLERR))
-			{
-				die("Connection error in idle");
-			}
-		}
-    }
-
-    /* Resource cleanup */
-    nghttp2_session_del(connection.session);
-    SSL_shutdown(ssl);
-    SSL_free(ssl);
-    SSL_CTX_free(ssl_ctx);
-    shutdown(fd, SHUT_WR);
-    close(fd);
-    request_free(&req);
 }
 
 static int parse_uri(struct URI *res, const char *uri)
@@ -681,6 +531,7 @@ static int down_channel_resp_cb(nghttp2_nv* nva, int nvlen)
         fwrite(nva[i].value, 1, nva[i].valuelen, stdout);
         printf("\n");
     }	
+	return 0;
 }
 
 static int create_down_channel()
@@ -692,7 +543,11 @@ static int create_down_channel()
                                MAKE_NV_CS(":path", "/v20160207/directives"),
                                MAKE_NV_CS("authorization", get_token())};
 
-    stream_id = nghttp2_submit_request(connection->session, NULL, http2_head, 4, NULL, down_channel_resp_cb);
+	req_ctx_t* ctx = (req_ctx_t*)malloc(sizeof(req_ctx_t));
+	ctx->head_resp_cb = down_channel_resp_cb;
+	ctx->body_resp_cb = 0;
+
+    stream_id = nghttp2_submit_request(connection.session, NULL, http2_head, 4, NULL, ctx);
 
     if (stream_id < 0)
     {
@@ -750,7 +605,7 @@ http2_content_t* build_http2_content(char* event_json, char* state_json, char* a
 	if (event_json == 0)
 		return 0;
 
-	len= 0
+	len= 0;
 	if (event_json)
 		len += strlen(event_json);
 	if (state_json)
@@ -788,9 +643,9 @@ http2_content_t* build_http2_content(char* event_json, char* state_json, char* a
 	pos += strlen(str3);
 
 	content = (http2_content_t*)malloc(sizeof(http2_content_t));
-	content.data = buf;
-	content.len = pos - buf;
-	content.pos = 0;
+	content->data = buf;
+	content->len = pos - buf;
+	content->pos = 0;
 	
 	return content;
 }
@@ -810,13 +665,13 @@ int conn_send_request(char* event_json, char* state_json, char* audio_data, int 
 
 	nghttp2_data_provider data_prd;
 	data_prd.read_callback = data_source_read_callback;
-	data_prd.source = http2_content;
-
+	data_prd.source.ptr = (void*)http2_content;
+	
 	req_ctx_t* ctx = (req_ctx_t*)malloc(sizeof(req_ctx_t));
 	ctx->head_resp_cb = head_resp_cb;
 	ctx->body_resp_cb = body_resp_cb;
 
-    stream_id = nghttp2_submit_request(connection->session, NULL, http2_head, 5, &data_prd, ctx);
+    stream_id = nghttp2_submit_request(connection.session, NULL, http2_head, 5, &data_prd, ctx);
 
     if (stream_id < 0)
     {
@@ -828,9 +683,157 @@ int conn_send_request(char* event_json, char* state_json, char* audio_data, int 
 	return 0;
 }
 
+static void epoll_thread(const struct URI *uri)
+{
+    nghttp2_session_callbacks *callbacks;
+    int fd;
+    SSL_CTX *ssl_ctx;
+    SSL *ssl;
+    struct Request req;
+    int rv;
+
+    request_init(&req, uri);
+
+    /* Establish connection and setup SSL */
+    fd = connect_to(req.host, req.port);
+    if (fd == -1)
+    {
+        die("Could not open file descriptor");
+    }
+    ssl_ctx = SSL_CTX_new(SSLv23_client_method());
+    if (ssl_ctx == NULL)
+    {
+        dief("SSL_CTX_new", ERR_error_string(ERR_get_error(), NULL));
+    }
+    init_ssl_ctx(ssl_ctx);
+    ssl = SSL_new(ssl_ctx);
+    if (ssl == NULL)
+    {
+        dief("SSL_new", ERR_error_string(ERR_get_error(), NULL));
+    }
+    /* To simplify the program, we perform SSL/TLS handshake in blocking
+       I/O. */
+    ssl_handshake(ssl, fd);
+
+    connection.ssl = ssl;
+    connection.want_io = IO_NONE;
+
+    /* Here make file descriptor non-block */
+    make_non_block(fd);
+    set_tcp_nodelay(fd);
+
+    printf("[INFO] SSL/TLS handshake completed\n");
+
+    rv = nghttp2_session_callbacks_new(&callbacks);
+
+    if (rv != 0)
+    {
+        diec("nghttp2_session_callbacks_new", rv);
+    }
+
+    setup_nghttp2_callbacks(callbacks);
+
+    rv = nghttp2_session_client_new(&connection.session, callbacks, &connection);
+
+    nghttp2_session_callbacks_del(callbacks);
+
+    if (rv != 0)
+    {
+        diec("nghttp2_session_client_new", rv);
+    }
+
+    rv = nghttp2_submit_settings(connection.session, NGHTTP2_FLAG_NONE, NULL, 0);
+
+    if (rv != 0)
+    {
+        diec("nghttp2_submit_settings", rv);
+    }
+
+	create_down_channel();
+
+    
+    /* Event loop */
+	struct pollfd pollfds[1];
+	struct pollfd *pollfd = &pollfds[0];
+	int nfds;
+	int ret;
+	pollfds[0].fd = fd;
+    while (epoll_thread_quit == 0)
+    {
+		int send = 0;
+		int recv = 0;
+		if (need_send_or_recv(&send, &recv))
+		{
+			pollfd->events = 0;
+			if (send)
+				pollfd->events |= POLLOUT;
+			if (recv)
+				pollfd->events |= POLLIN;
+
+			nfds = poll(pollfds, 1, -1);
+	        if (nfds == -1)
+	        {
+	            dief("poll", strerror(errno));
+	        }
+			if (pollfds[0].revents & POLLOUT)
+			{
+				ret = nghttp2_session_send(connection.session);
+				if (ret != 0)
+				{
+					diec("nghttp2_session_send", ret);
+				}				
+			}	
+			if (pollfds[0].revents & POLLIN)
+			{
+				ret = nghttp2_session_recv(connection.session);
+				if (ret != 0)
+				{
+					diec("nghttp2_session_recv", ret);
+				}				
+			}
+	        if ((pollfds[0].revents & POLLHUP) || (pollfds[0].revents & POLLERR))
+	        {
+	            die("Connection error");
+	        }			
+		}
+		else
+		{
+			pollfd->events = 0;
+			pollfd->events = POLLIN;
+			nfds = poll(pollfds, 1, 200);
+	        if (nfds == -1)
+	        {
+	            dief("poll in idle", strerror(errno));
+	        }
+			else if (nfds > 0)
+			{
+				ret = nghttp2_session_recv(connection.session);
+				if (ret != 0)
+				{
+					diec("nghttp2_session_recv in idle", ret);
+				}					
+			}
+			else if ((pollfds[0].revents & POLLHUP) || (pollfds[0].revents & POLLERR))
+			{
+				die("Connection error in idle");
+			}
+		}
+    }
+
+    /* Resource cleanup */
+    nghttp2_session_del(connection.session);
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    SSL_CTX_free(ssl_ctx);
+    shutdown(fd, SHUT_WR);
+    close(fd);
+    request_free(&req);
+}
+
+static struct URI uri;
+
 int conn_open()
 {
-    struct URI uri;
     struct sigaction act;
     int rv;
     int ret;
@@ -861,5 +864,5 @@ int conn_close()
 {
 	epoll_thread_quit = 1;
 	pthread_join(pid_epoll, NULL);
+	return 0;
 }
-

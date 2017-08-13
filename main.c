@@ -14,6 +14,7 @@ int main(int argc, char** argv)
     fseek(pcm, 0, SEEK_END);
     int len = ftell(pcm);
     char *pcm_buf = (char*)malloc(len);
+	fseek(pcm, 0, 0);
     int ret = fread(pcm_buf, 1, len, pcm);
     if (ret != len)
     {
@@ -24,6 +25,7 @@ int main(int argc, char** argv)
     }
 
     client_open();
+	sleep(15);
     client_talk(pcm_buf, len);
 	sleep(10);
     client_close();

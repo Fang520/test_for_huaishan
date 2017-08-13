@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-g -Wall
-LIBS=
+LIBS=-lnghttp2 -lssl -lcrypto -lpthread
 DEFS=
 INCS=-Iinclude
 SRCS=src/*.c main.c
@@ -18,5 +18,5 @@ $(TARGET):$(OBJS)
 all:$(TARGET)
 
 clean:
-	rm $(OBJS)
-	rm $(TARGET)
+	rm -f $(OBJS)
+	rm -f $(TARGET)

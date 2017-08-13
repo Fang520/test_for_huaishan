@@ -15,6 +15,7 @@ static int head_resp_cb(nghttp2_nv* nva, int nvlen)
         fwrite(nva[i].value, 1, nva[i].valuelen, stdout);
         printf("\n");
     }	
+	return 0;
 }
 
 int api_system_sync_state()

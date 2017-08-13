@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "connection.h"
+#include "state.h"
 #include "api_speech_recognizer.h"
 
 static int head_resp_cb(nghttp2_nv* nva, int nvlen)
@@ -17,7 +18,7 @@ static int head_resp_cb(nghttp2_nv* nva, int nvlen)
 	return 0;
 }
 
-static int body_resp_cb(char* buf, int len)
+static int body_resp_cb(const uint8_t* buf, int len)
 {
 	printf("========= get audio body resp\n");
 	FILE* f = fopen("audio.dat", "wb");
@@ -45,6 +46,7 @@ int api_speech_recognizer(char* audio, int len)
 					    "}";
 	char* state_json = get_all_state_json_string();
     conn_send_request(event_json, state_json, audio, len, head_resp_cb, body_resp_cb);
+	return 0;
 }
 
 
