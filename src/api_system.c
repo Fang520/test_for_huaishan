@@ -1,29 +1,35 @@
 #include <stdio.h>
 #include "connection.h"
+#include "state.h"
 #include "api_system.h"
 
-static conn_listener_t listener;
-
-int api_system_init()
+static int head_resp_cb(nghttp2_nv* nva, int nvlen)
 {
-	conn_listener(&listener);
-	return 0;
+	int i;
+	
+	printf("========= get system resp\n");
+    for (i = 0; i < nvlen; i++)
+    {
+        fwrite(nva[i].name, 1, nva[i].namelen, stdout);
+        printf(": ");
+        fwrite(nva[i].value, 1, nva[i].valuelen, stdout);
+        printf("\n");
+    }	
 }
 
 int api_system_sync_state()
 {
-	msg_field_t header[2] = {{'namespace','System'},
-	                         {'name','SynchronizeState'}};
-    return conn_send_msg(header);
-}
-
-static int sync_state_resp(char* buf)
-{
-	
-}
-
-static int probe(char* buf)
-{
+	char* event_json =  "\"event\": {"
+					    "    \"header\": {"
+					    "        \"namespace\": \"System\","
+					    "        \"name\": \"SynchronizeState\","
+					    "        \"messageId\": \"api_system_sync_state\""
+					    "    },"
+					    "    \"payload\": {"
+					    "    }"
+					    "}";
+	char* state_json = get_all_state_json_string();
+    conn_send_request(event_json, state_json, 0, 0, head_resp_cb, 0);
 	return 0;
 }
 

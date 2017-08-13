@@ -1,28 +1,13 @@
 #include <stdio.h>
 #include "connection.h"
-#include "client.h"
 #include "api_system.h"
+#include "api_speech_recognizer.h"
+#include "client.h"
 
 int client_open()
 {
-	int ret;
-
-	api_alerts_init();
-	api_audioplayer_init();
-	api_playbackcontroller_init();
-	api_speaker_init();
-	api_speech_recognizer_init();
-	api_speech_synthesizer_init();
-	api_system_init();
-
-	ret = conn_open();
-	if (ret != 0)
-		return ret;
-	
-	ret = api_system_sync_status();
-	if (ret != 0)
-		return ret;
-		
+	conn_open();
+	api_system_sync_state();
  	return 0;
 }
 
@@ -32,9 +17,8 @@ int client_close()
 	return 0;
 }
 
-int client_talk()
+int client_talk(char* audio, int len)
 {
+	api_speech_recognizer(audio, len);
 	return 0;
 }
-
-

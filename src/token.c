@@ -124,6 +124,9 @@ char* get_token() {
    
     *p2 = '\0';
 
+	//	  sprintf(str, "Bearer %s", str_auth);
+
+
     printf("%s\n", p1);
 
     SSL_shutdown(conn);
@@ -131,5 +134,7 @@ char* get_token() {
  
   close(sockfd);
 
-  return p1;
+  memcpy(p1 - 7, "Bearer ", 7);
+
+  return p1 - 7;
 }

@@ -1,7 +1,19 @@
 #include "state.h"
 
+static char buf[2048];
+
+char* get_all_state_json_string()
+{
+	char* str1 = get_alerts_state_json_string();
+	char* str2 = get_volume_state_json_string(0, 0);
+	sprintf(buf, "\"context\": [%s,%s]", str1, str2);
+	return buf;
+}
+
 char* get_recognizer_state_json_string()
 {
+	return 0;
+/*	
 	{
 		"header": {
 			"namespace": "SpeechRecognizer",
@@ -11,11 +23,13 @@ char* get_recognizer_state_json_string()
 			"wakeword": "ALEXA"
 		}
 	}
-
+*/
 }
 
 char* get_playback_state_json_string(char* token, int offset, char* activity)
 {
+	return 0;
+/*
 	{
 		"header": {
 			"namespace": "AudioPlayer",
@@ -27,11 +41,24 @@ char* get_playback_state_json_string(char* token, int offset, char* activity)
 			"playerActivity": "{{STRING}}"
 		}
 	}
-
+*/
 }
 
 char* get_alerts_state_json_string(char* token, char* type, int time, char* token_act, char* type_act, int time_act)
 {
+	char* json =	"{"
+					"	\"header\": {"
+					"		\"namespace\": \"Alerts\","
+					"		\"name\": \"AlertsState\""
+					"	},"
+					"	\"payload\": {"
+					"		\"allAlerts\": [],"
+					"		\"activeAlerts\": []"
+					"	}"
+					"}";
+	return json;
+
+	/*
 	{
 		"header": {
 			"namespace": "Alerts",
@@ -54,11 +81,24 @@ char* get_alerts_state_json_string(char* token, char* type, int time, char* toke
 			]
 		}
 	}
+	*/
 
 }
 
 char* get_volume_state_json_string(int volume, int muted)
 {
+	char* json =	"{"
+					"	\"header\": {"
+					"		\"namespace\": \"Speaker\","
+					"		\"name\": \"SpeakerState\""
+					"	},"
+					"	\"payload\": {"
+					"		\"volume\": 50,"
+					"		\"muted\": false"
+					"	}"
+					"}";
+	return json;
+	/*
 	{
 		"header": {
 			"namespace": "Speaker",
@@ -69,11 +109,13 @@ char* get_volume_state_json_string(int volume, int muted)
 			"muted": {{BOOLEAN}}
 		}
 	}
-
+*/
 }
 
 char* get_speech_state_json_string(char* token, int offset, char* activity)
 {
+	return 0;
+	/*
 	{
 		"header": {
 			"namespace": "SpeechSynthesizer",
@@ -85,11 +127,13 @@ char* get_speech_state_json_string(char* token, int offset, char* activity)
 			"playerActivity": "{{STRING}}"
 		}
 	}
-
+*/
 }
 
 char* get_indicator_state_json_string(int is_enabled, int is_visual)
 {
+	return 0;
+	/*
 	{
 		"header": {
 			"namespace": "Notifications",
@@ -100,6 +144,6 @@ char* get_indicator_state_json_string(int is_enabled, int is_visual)
 			"isVisualIndicatorPersisted": {{BOOLEAN}}
 		}
 	}
-
+*/
 }
 

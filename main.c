@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include "avs_client.h"
+#include "client.h"
 
 int main(int argc, char** argv)
 {
@@ -23,27 +23,13 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    ret = client_open();
-    if (ret != 0)
-    {
-        printf("client open error\n");
-        free(pcm_buf);
-        fclose(pcm);
-        return -1;
-    }
-
-    ret = client_talk(pcm_buf, len);
-    if (ret != 0)
-    {
-        printf("speech recognizer request error\n");
-        free(pcm_buf);
-        fclose(pcm);
-        return -1;
-    }
-
+    client_open();
+    client_talk(pcm_buf, len);
+	sleep(10);
     client_close();
+
     free(pcm_buf);
-    fclose(pcm);
+	fclose(pcm);
 
     return 0;
 }

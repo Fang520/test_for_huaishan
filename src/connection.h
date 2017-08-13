@@ -1,21 +1,13 @@
 #ifndef CONNECTION_H
 #define CONNECTION_H
 
-typedef int (*probe_t)(char* buf, int len);
-typedef int (*handle_t)(char* buf, int len);
+#include "nghttp2.h"
 
-typedef struct {
-	probe_t probe;
-	handle_t handle;
-} conn_listener_t;
+typedef int (*head_resp_cb_t)(nghttp2_nv* nva, int nvlen);
+typedef int (*body_resp_cb_t)(char* buf, int len);
 
-typedef struct {
-	nghttp2_nv[] fields;
-	int num;
-} msg_header_t;
-
-int conn_send_msg(msg_header_t* header, char* states, char* audio_data, int audio_len);
-void conn_reg_listener(conn_listener_t listener);
+int conn_send_request(char* event_json, char* state_json, char* audio_data, int audio_len,
+	                         head_resp_cb_t head_resp_cb, body_resp_cb_t body_resp_cb);
 int conn_open();
 int conn_close();
 

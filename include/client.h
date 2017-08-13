@@ -3,7 +3,7 @@
 
 int client_open();
 int client_close();
-int client_talk();
+int client_talk(char* audio, int len);
 
 #endif
 

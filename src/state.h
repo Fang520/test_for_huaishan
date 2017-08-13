@@ -10,6 +10,7 @@ enum STATE_TYPE {
 	IndicatorState
 };
 
+char* get_all_state_json_string();
 char* get_recognizer_state_json_string();
 char* get_playback_state_json_string(char* token, int offset, char* activity);
 char* get_alerts_state_json_string(char* token, char* type, int time, char* token_act, char* type_act, int time_act);
