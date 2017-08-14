@@ -68,8 +68,8 @@ struct URI
 };
 
 typedef struct {
-	head_resp_cb_t head_resp_cb;
-	body_resp_cb_t body_resp_cb;
+    head_resp_cb_t head_resp_cb;
+    body_resp_cb_t body_resp_cb;
 } req_ctx_t;
 
 static struct Connection connection;
@@ -171,7 +171,7 @@ static int on_frame_send_callback(nghttp2_session *session,
 {
     size_t i;
     (void)user_data;
-	nghttp2_nv* nva;
+    nghttp2_nv* nva;
 
     switch (frame->hd.type)
     {
@@ -216,11 +216,11 @@ static int on_frame_recv_callback(nghttp2_session *session,
                 fwrite(nva[i].value, 1, nva[i].valuelen, stdout);
                 printf("\n");
             }
-			req_ctx_t* req_ctx = (req_ctx_t*)nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
-			if (req_ctx)
-			{
-				req_ctx->head_resp_cb(frame->headers.nva, frame->headers.nvlen);
-			}
+            req_ctx_t* req_ctx = (req_ctx_t*)nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
+            if (req_ctx)
+            {
+                req_ctx->head_resp_cb(frame->headers.nva, frame->headers.nvlen);
+            }
         }
         break;
     case NGHTTP2_RST_STREAM:
@@ -246,11 +246,11 @@ static int on_data_chunk_recv_callback(nghttp2_session *session, uint8_t flags,
     fwrite(data, 1, len, stdout);
     printf("\n");
 
-	req_ctx_t* req_ctx = (req_ctx_t*)nghttp2_session_get_stream_user_data(session, stream_id);
-	if (req_ctx)
-	{
-		req_ctx->body_resp_cb(data, len);
-	}
+    req_ctx_t* req_ctx = (req_ctx_t*)nghttp2_session_get_stream_user_data(session, stream_id);
+    if (req_ctx)
+    {
+        req_ctx->body_resp_cb(data, len);
+    }
 
     return 0;
 }
@@ -261,14 +261,14 @@ static int on_stream_close_callback(nghttp2_session *session, int32_t stream_id,
     (void)error_code;
     (void)user_data;
 
-	int rv;
-	printf("=================== close\n");
-	rv = nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
+    int rv;
+    printf("=================== close\n");
+    rv = nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
 
-	if (rv != 0)
-	{
-		diec("nghttp2_session_terminate_session", rv);
-	}
+    if (rv != 0)
+    {
+        diec("nghttp2_session_terminate_session", rv);
+    }
     return 0;
 }
 
@@ -404,13 +404,13 @@ static void request_free(struct Request *req)
 
 static int need_send_or_recv(int* send, int* recv)
 {
-	*send = 0;
-	*recv = 0;
+    *send = 0;
+    *recv = 0;
     if (nghttp2_session_want_read(connection.session) || connection.want_io == WANT_READ)
         *recv = 1;
     if (nghttp2_session_want_write(connection.session) || connection.want_io == WANT_WRITE)
         *send = 1;
-	return *recv + *send;
+    return *recv + *send;
 }
 
 static int parse_uri(struct URI *res, const char *uri)
@@ -521,31 +521,31 @@ static int parse_uri(struct URI *res, const char *uri)
 
 static int down_channel_resp_cb(nghttp2_nv* nva, int nvlen)
 {
-	int i;
-	
-	printf("========= get down channel resp\n");
+    int i;
+    
+    printf("========= get down channel resp\n");
     for (i = 0; i < nvlen; i++)
     {
         fwrite(nva[i].name, 1, nva[i].namelen, stdout);
         printf(": ");
         fwrite(nva[i].value, 1, nva[i].valuelen, stdout);
         printf("\n");
-    }	
-	return 0;
+    }   
+    return 0;
 }
 
 static int create_down_channel()
 {
-	int stream_id;
-	
+    int stream_id;
+    
     nghttp2_nv http2_head[] = {MAKE_NV(":method", "GET"),
-					           MAKE_NV(":scheme", "https"),
+                               MAKE_NV(":scheme", "https"),
                                MAKE_NV_CS(":path", "/v20160207/directives"),
                                MAKE_NV_CS("authorization", get_token())};
 
-	req_ctx_t* ctx = (req_ctx_t*)malloc(sizeof(req_ctx_t));
-	ctx->head_resp_cb = down_channel_resp_cb;
-	ctx->body_resp_cb = 0;
+    req_ctx_t* ctx = (req_ctx_t*)malloc(sizeof(req_ctx_t));
+    ctx->head_resp_cb = down_channel_resp_cb;
+    ctx->body_resp_cb = 0;
 
     stream_id = nghttp2_submit_request(connection.session, NULL, http2_head, 4, NULL, ctx);
 
@@ -554,122 +554,122 @@ static int create_down_channel()
         diec("nghttp2_submit_request", stream_id);
     }
 
-	return 0;
+    return 0;
 }
 
 typedef struct {
-	int len;
-	char* data;
-	int stream_id;
-	int pos;
+    int len;
+    char* data;
+    int stream_id;
+    int pos;
 } http2_content_t;
 
-int data_source_read_callback(nghttp2_session *session, int32_t stream_id, uint8_t *buf, size_t length,
+ssize_t data_source_read_callback(nghttp2_session *session, int32_t stream_id, uint8_t *buf, size_t length,
                                          uint32_t *data_flags, nghttp2_data_source *source, void *user_data)
 {
-	http2_content_t* content = (http2_content_t*)source->ptr;
-	int copy_len, left_len;
-	left_len = content->len - content->pos;
-	if (left_len <= length)
-	{
-		copy_len = left_len;
-		*data_flags |= NGHTTP2_DATA_FLAG_EOF;
-	}
-	else
-	{
-		copy_len = length;
-	}
-	memcpy(buf, content->data, copy_len);
-	content->pos = content->len - copy_len;
-	return copy_len;
+    http2_content_t* content = (http2_content_t*)source->ptr;
+    int copy_len, left_len;
+    left_len = content->len - content->pos;
+    if (left_len <= length)
+    {
+        copy_len = left_len;
+        *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+    }
+    else
+    {
+        copy_len = length;
+    }
+    memcpy(buf, content->data, copy_len);
+    content->pos = content->len - copy_len;
+    return copy_len;
 }
 
 http2_content_t* build_http2_content(char* event_json, char* state_json, char* audio_data, int audio_len)
 {
-	char* buf;
-	char* pos;
-	int len;
-	http2_content_t* content;
+    char* buf;
+    char* pos;
+    int len;
+    http2_content_t* content;
 
-	char* str1 = "--uniview-boundary\n"
-	             "Content-Disposition: form-data; name=\"metadata\"\n"
-	             "Content-Type: application/json; charset=UTF-8\n\n";
+    char* str1 = "--uniview-boundary\n"
+                 "Content-Disposition: form-data; name=\"metadata\"\n"
+                 "Content-Type: application/json; charset=UTF-8\n\n";
 
-	char* str2 = "--uniview-boundary\n"
-				 "Content-Disposition: form-data; name=\"audio\"\n"
-				 "Content-Type: application/octet-stream\n\n";
+    char* str2 = "--uniview-boundary\n"
+                 "Content-Disposition: form-data; name=\"audio\"\n"
+                 "Content-Type: application/octet-stream\n\n";
 
-	char* str3 = "--uniview-boundary--";
+    char* str3 = "--uniview-boundary--";
 
 
-	if (event_json == 0)
-		return 0;
+    if (event_json == 0)
+        return 0;
 
-	len= 0;
-	if (event_json)
-		len += strlen(event_json);
-	if (state_json)
-		len += strlen(state_json);
-	len += audio_len;
+    len= 0;
+    if (event_json)
+        len += strlen(event_json);
+    if (state_json)
+        len += strlen(state_json);
+    len += audio_len;
 
-	buf = (char*)malloc(len + 1024);
-	pos = buf;
-	
-	strcpy(pos, str1);
-	pos += strlen(str1);
+    buf = (char*)malloc(len + 1024);
+    pos = buf;
+    
+    strcpy(pos, str1);
+    pos += strlen(str1);
 
-	len = sprintf(pos, "{%s", event_json);
-	pos += len;
+    len = sprintf(pos, "{%s", event_json);
+    pos += len;
 
-	if (state_json)
-	{
-		len = sprintf(pos, ",%s}", state_json);
-		pos += len;
-	}
-	else
-	{
-		pos[0] = '}';
-		pos += 1;
-	}
+    if (state_json)
+    {
+        len = sprintf(pos, ",%s}", state_json);
+        pos += len;
+    }
+    else
+    {
+        pos[0] = '}';
+        pos += 1;
+    }
 
-	if (audio_data)
-	{
-		strcpy(pos, str2);
-		pos += strlen(str2);
-		memcpy(pos, audio_data, audio_len);
-		pos += audio_len;
-	}		
-	strcpy(pos, str3);
-	pos += strlen(str3);
+    if (audio_data)
+    {
+        strcpy(pos, str2);
+        pos += strlen(str2);
+        memcpy(pos, audio_data, audio_len);
+        pos += audio_len;
+    }       
+    strcpy(pos, str3);
+    pos += strlen(str3);
 
-	content = (http2_content_t*)malloc(sizeof(http2_content_t));
-	content->data = buf;
-	content->len = pos - buf;
-	content->pos = 0;
-	
-	return content;
+    content = (http2_content_t*)malloc(sizeof(http2_content_t));
+    content->data = buf;
+    content->len = pos - buf;
+    content->pos = 0;
+    
+    return content;
 }
 
 int conn_send_request(char* event_json, char* state_json, char* audio_data, int audio_len,
-	                         head_resp_cb_t head_resp_cb, body_resp_cb_t body_resp_cb)
+                             head_resp_cb_t head_resp_cb, body_resp_cb_t body_resp_cb)
 {
-	int stream_id;
-	
+    int stream_id;
+    
     nghttp2_nv http2_head[] = {MAKE_NV(":method", "POST"),
-					    MAKE_NV(":scheme", "https"),
+                        MAKE_NV(":scheme", "https"),
                         MAKE_NV_CS(":path", "/v20160207/directives"),
                         MAKE_NV_CS("authorization", get_token()),
-  						MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary")};
+                        MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary")};
 
-	http2_content_t* http2_content = build_http2_content(event_json, state_json, audio_data, audio_len);
+    http2_content_t* http2_content = build_http2_content(event_json, state_json, audio_data, audio_len);
 
-	nghttp2_data_provider data_prd;
-	data_prd.read_callback = data_source_read_callback;
-	data_prd.source.ptr = (void*)http2_content;
-	
-	req_ctx_t* ctx = (req_ctx_t*)malloc(sizeof(req_ctx_t));
-	ctx->head_resp_cb = head_resp_cb;
-	ctx->body_resp_cb = body_resp_cb;
+    nghttp2_data_provider data_prd;
+
+    data_prd.read_callback = data_source_read_callback;
+    data_prd.source.ptr = (void*)http2_content;
+    req_ctx_t* ctx = (req_ctx_t*)malloc(sizeof(req_ctx_t));
+    ctx->head_resp_cb = head_resp_cb;
+    ctx->body_resp_cb = body_resp_cb;
 
     stream_id = nghttp2_submit_request(connection.session, NULL, http2_head, 5, &data_prd, ctx);
 
@@ -680,7 +680,7 @@ int conn_send_request(char* event_json, char* state_json, char* audio_data, int 
 
     http2_content->stream_id = stream_id;
 
-	return 0;
+    return 0;
 }
 
 static void epoll_thread(const struct URI *uri)
@@ -749,75 +749,75 @@ static void epoll_thread(const struct URI *uri)
         diec("nghttp2_submit_settings", rv);
     }
 
-	create_down_channel();
+    create_down_channel();
 
     
     /* Event loop */
-	struct pollfd pollfds[1];
-	struct pollfd *pollfd = &pollfds[0];
-	int nfds;
-	int ret;
-	pollfds[0].fd = fd;
+    struct pollfd pollfds[1];
+    struct pollfd *pollfd = &pollfds[0];
+    int nfds;
+    int ret;
+    pollfds[0].fd = fd;
     while (epoll_thread_quit == 0)
     {
-		int send = 0;
-		int recv = 0;
-		if (need_send_or_recv(&send, &recv))
-		{
-			pollfd->events = 0;
-			if (send)
-				pollfd->events |= POLLOUT;
-			if (recv)
-				pollfd->events |= POLLIN;
+        int send = 0;
+        int recv = 0;
+        if (need_send_or_recv(&send, &recv))
+        {
+            pollfd->events = 0;
+            if (send)
+                pollfd->events |= POLLOUT;
+            if (recv)
+                pollfd->events |= POLLIN;
 
-			nfds = poll(pollfds, 1, -1);
-	        if (nfds == -1)
-	        {
-	            dief("poll", strerror(errno));
-	        }
-			if (pollfds[0].revents & POLLOUT)
-			{
-				ret = nghttp2_session_send(connection.session);
-				if (ret != 0)
-				{
-					diec("nghttp2_session_send", ret);
-				}				
-			}	
-			if (pollfds[0].revents & POLLIN)
-			{
-				ret = nghttp2_session_recv(connection.session);
-				if (ret != 0)
-				{
-					diec("nghttp2_session_recv", ret);
-				}				
-			}
-	        if ((pollfds[0].revents & POLLHUP) || (pollfds[0].revents & POLLERR))
-	        {
-	            die("Connection error");
-	        }			
-		}
-		else
-		{
-			pollfd->events = 0;
-			pollfd->events = POLLIN;
-			nfds = poll(pollfds, 1, 200);
-	        if (nfds == -1)
-	        {
-	            dief("poll in idle", strerror(errno));
-	        }
-			else if (nfds > 0)
-			{
-				ret = nghttp2_session_recv(connection.session);
-				if (ret != 0)
-				{
-					diec("nghttp2_session_recv in idle", ret);
-				}					
-			}
-			else if ((pollfds[0].revents & POLLHUP) || (pollfds[0].revents & POLLERR))
-			{
-				die("Connection error in idle");
-			}
-		}
+            nfds = poll(pollfds, 1, -1);
+            if (nfds == -1)
+            {
+                dief("poll", strerror(errno));
+            }
+            if (pollfds[0].revents & POLLOUT)
+            {
+                ret = nghttp2_session_send(connection.session);
+                if (ret != 0)
+                {
+                    diec("nghttp2_session_send", ret);
+                }               
+            }   
+            if (pollfds[0].revents & POLLIN)
+            {
+                ret = nghttp2_session_recv(connection.session);
+                if (ret != 0)
+                {
+                    diec("nghttp2_session_recv", ret);
+                }               
+            }
+            if ((pollfds[0].revents & POLLHUP) || (pollfds[0].revents & POLLERR))
+            {
+                die("Connection error");
+            }           
+        }
+        else
+        {
+            pollfd->events = 0;
+            pollfd->events = POLLIN;
+            nfds = poll(pollfds, 1, 200);
+            if (nfds == -1)
+            {
+                dief("poll in idle", strerror(errno));
+            }
+            else if (nfds > 0)
+            {
+                ret = nghttp2_session_recv(connection.session);
+                if (ret != 0)
+                {
+                    diec("nghttp2_session_recv in idle", ret);
+                }                   
+            }
+            else if ((pollfds[0].revents & POLLHUP) || (pollfds[0].revents & POLLERR))
+            {
+                die("Connection error in idle");
+            }
+        }
     }
 
     /* Resource cleanup */
@@ -851,18 +851,18 @@ int conn_open()
         die("parse_uri failed");
     }
 
-	ret = pthread_create(&pid_epoll, NULL, (void*)epoll_thread, &uri);  
-	if (ret != 0)	
-	{  
-		die("Create epoll pthread error");	
-	}  
+    ret = pthread_create(&pid_epoll, NULL, (void*)epoll_thread, &uri);  
+    if (ret != 0)   
+    {  
+        die("Create epoll pthread error");  
+    }  
 
     return 0;
 }
 
 int conn_close()
 {
-	epoll_thread_quit = 1;
-	pthread_join(pid_epoll, NULL);
-	return 0;
+    epoll_thread_quit = 1;
+    pthread_join(pid_epoll, NULL);
+    return 0;
 }
