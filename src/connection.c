@@ -7,7 +7,6 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <assert.h>
@@ -74,8 +73,8 @@ typedef struct
 } req_ctx_t;
 
 static struct Connection connection;
-static pthread_t pid_epoll;
-static int epoll_thread_quit = 0;
+static pthread_t pid_thread;
+static int recv_thread_quit = 0;
 
 static char *strcopy(const char *s, size_t len)
 {
@@ -222,6 +221,8 @@ static int on_frame_recv_callback(nghttp2_session *session,
                     printf("\n");
                 }
 
+                verbose_recv_frame(session, frame);
+
                 req_ctx_t* req_ctx = (req_ctx_t*)nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
 
                 if (req_ctx)
@@ -276,6 +277,12 @@ static int on_stream_close_callback(nghttp2_session *session, int32_t stream_id,
     return 0;
 }
 
+static int on_header_callback(nghttp2_session *session, const nghttp2_frame *frame, const uint8_t *name, size_t namelen, const uint8_t *value, size_t valuelen, uint8_t flags, void *user_data)
+{
+    verbose_header(session, frame, name, namelen, value, valuelen, flags, user_data);
+    return 0;
+}
+
 static void setup_nghttp2_callbacks(nghttp2_session_callbacks *callbacks)
 {
     nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
@@ -284,6 +291,7 @@ static void setup_nghttp2_callbacks(nghttp2_session_callbacks *callbacks)
     nghttp2_session_callbacks_set_on_frame_recv_callback(callbacks, on_frame_recv_callback);
     nghttp2_session_callbacks_set_on_data_chunk_recv_callback(callbacks, on_data_chunk_recv_callback);
     nghttp2_session_callbacks_set_on_stream_close_callback(callbacks, on_stream_close_callback);
+    nghttp2_session_callbacks_set_on_header_callback(callbacks, on_header_callback);
 }
 
 static int select_next_proto_cb(SSL *ssl, unsigned char **out,
@@ -402,20 +410,6 @@ static void request_free(struct Request *req)
     free(req->host);
     free(req->path);
     free(req->hostport);
-}
-
-static int need_send_or_recv(int* send, int* recv)
-{
-    *send = 0;
-    *recv = 0;
-
-    if (nghttp2_session_want_read(connection.session) || connection.want_io == WANT_READ)
-        *recv = 1;
-
-    if (nghttp2_session_want_write(connection.session) || connection.want_io == WANT_WRITE)
-        *send = 1;
-
-    return *recv + *send;
 }
 
 static int parse_uri(struct URI *res, const char *uri)
@@ -676,7 +670,7 @@ int conn_send_request(char* event_json, char* state_json, char* audio_data, int 
     return 0;
 }
 
-static void epoll_thread(const struct URI *uri)
+static void recv_thread(const struct URI *uri)
 {
     nghttp2_session_callbacks *callbacks;
     int fd;
@@ -729,70 +723,33 @@ static void epoll_thread(const struct URI *uri)
         diec("nghttp2_submit_settings", rv);
 
     create_down_channel();
-    /* Event loop */
-    struct pollfd pollfds[1];
-    struct pollfd *pollfd = &pollfds[0];
-    int nfds;
-    int ret;
-    pollfds[0].fd = fd;
 
-    while (epoll_thread_quit == 0)
+    fd_set fdset;
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 100000;
+    while (recv_thread_quit == 0)
     {
-        int send = 0;
-        int recv = 0;
-
-        if (need_send_or_recv(&send, &recv))
+        if (nghttp2_session_want_write(connection.session) || connection.want_io == WANT_WRITE)
         {
-            pollfd->events = 0;
-
-            if (send)
-                pollfd->events |= POLLOUT;
-
-            if (recv)
-                pollfd->events |= POLLIN;
-
-            nfds = poll(pollfds, 1, -1);
-
-            if (nfds == -1)
-                dief("poll", strerror(errno));
-
-            if (pollfds[0].revents & POLLOUT)
-            {
-                ret = nghttp2_session_send(connection.session);
-
-                if (ret != 0)
-                    diec("nghttp2_session_send", ret);
-            }
-
-            if (pollfds[0].revents & POLLIN)
-            {
-                ret = nghttp2_session_recv(connection.session);
-
-                if (ret != 0)
-                    diec("nghttp2_session_recv", ret);
-            }
-
-            if ((pollfds[0].revents & POLLHUP) || (pollfds[0].revents & POLLERR))
-                die("Connection error");
+            rv = nghttp2_session_send(connection.session);
+            if (rv != 0)
+                diec("nghttp2_session_send", rv);        
         }
-        else
+        FD_ZERO(&fdset);
+        FD_SET(fd, &fdset);
+        rv = select(fd + 1, &fdset, NULL, NULL, &tv);
+        if (rv < 0)
         {
-            pollfd->events = 0;
-            pollfd->events = POLLIN;
-            nfds = poll(pollfds, 1, 200);
-
-            if (nfds == -1)
-                dief("poll in idle", strerror(errno));
-            else if (nfds > 0)
-            {
-                ret = nghttp2_session_recv(connection.session);
-
-                if (ret != 0)
-                    diec("nghttp2_session_recv in idle", ret);
-            }
-            else if ((pollfds[0].revents & POLLHUP) || (pollfds[0].revents & POLLERR))
-                die("Connection error in idle");
+            diec("select fail", rv);
         }
+        if (rv == 0)
+        {
+            continue;            
+        }
+        rv = nghttp2_session_recv(connection.session);
+        if (rv != 0)
+            diec("nghttp2_session_recv", rv);
     }
 
     /* Resource cleanup */
@@ -822,7 +779,7 @@ int conn_open()
     if (rv != 0)
         die("parse_uri failed");
 
-    ret = pthread_create(&pid_epoll, NULL, (void*)epoll_thread, &uri);
+    ret = pthread_create(&pid_thread, NULL, (void*)recv_thread, &uri);
 
     if (ret != 0)
         die("Create epoll pthread error");
@@ -832,7 +789,7 @@ int conn_open()
 
 int conn_close()
 {
-    epoll_thread_quit = 1;
-    pthread_join(pid_epoll, NULL);
+    recv_thread_quit = 1;
+    pthread_join(pid_thread, NULL);
     return 0;
 }

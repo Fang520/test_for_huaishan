@@ -30,6 +30,7 @@ int api_system_sync_state()
 					    "    }"
 					    "}";
 	char* state_json = get_all_state_json_string();
+	printf("========= send system request\n");
     conn_send_request(event_json, state_json, 0, 0, head_resp_cb, 0);
 	return 0;
 }
