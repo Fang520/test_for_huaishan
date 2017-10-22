@@ -8,8 +8,7 @@
 int client_open()
 {
     conn_open();
-    sleep(15);
-    api_system_sync_state();
+    //api_system_sync_state();
     return 0;
 }
 

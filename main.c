@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include "client.h"
 
+int g_quit = 0;
+char* g_audio_buf = 0;
+int g_audio_len = 0;
+
 int main(int argc, char** argv)
 {
     FILE *pcm = fopen("test.pcm", "rb");
@@ -24,10 +28,18 @@ int main(int argc, char** argv)
         return -1;
     }
 
+    g_audio_buf = pcm_buf;
+    g_audio_len = len;
+
     client_open();
-	sleep(15);
-    client_talk(pcm_buf, len);
-	sleep(10);
+    while (g_quit == 0)
+    {
+        sleep(1);
+    }
+
+    printf("sleep 20s\n");
+    sleep(20);
+    
     client_close();
 
     free(pcm_buf);

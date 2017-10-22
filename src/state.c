@@ -14,14 +14,14 @@ char* get_all_state_json_string()
 char* get_alerts_state_json_string(char* token, char* type, int time, char* token_act, char* type_act, int time_act)
 {
 	char* json =	"{"
-					"	\"header\": {"
-					"		\"namespace\": \"Alerts\","
-					"		\"name\": \"AlertsState\""
-					"	},"
-					"	\"payload\": {"
-					"		\"allAlerts\": [],"
-					"		\"activeAlerts\": []"
-					"	}"
+					"\"header\": {"
+					"\"namespace\": \"Alerts\","
+					"\"name\": \"AlertsState\""
+					"},"
+					"\"payload\": {"
+					"\"allAlerts\": [],"
+					"\"activeAlerts\": []"
+					"}"
 					"}";
 	return json;
 }
@@ -29,14 +29,14 @@ char* get_alerts_state_json_string(char* token, char* type, int time, char* toke
 char* get_volume_state_json_string()
 {
 	char* json =	"{"
-					"	\"header\": {"
-					"		\"namespace\": \"Speaker\","
-					"		\"name\": \"SpeakerState\""
-					"	},"
-					"	\"payload\": {"
-					"		\"volume\": 50,"
-					"		\"muted\": false"
-					"	}"
+					"\"header\": {"
+					"\"namespace\": \"Speaker\","
+					"\"name\": \"SpeakerState\""
+					"},"
+					"\"payload\": {"
+					"\"volume\": 50,"
+					"\"muted\": false"
+					"}"
 					"}";
 	return json;
 }

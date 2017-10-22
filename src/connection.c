@@ -72,6 +72,8 @@ typedef struct
     body_resp_cb_t body_resp_cb;
 } req_ctx_t;
 
+extern int g_send_audio;
+
 static struct Connection connection;
 static pthread_t pid_thread;
 static int recv_thread_quit = 0;
@@ -142,11 +144,22 @@ static ssize_t recv_callback(nghttp2_session *session, uint8_t *buf,
     (void)flags;
     connection = (struct Connection *)user_data;
     connection->want_io = IO_NONE;
+
+    if (g_send_audio)
+    {
+        printf("-------------- g_send_audio 2\n");
+    }
+    
     ERR_clear_error();
     rv = SSL_read(connection->ssl, buf, (int)length);
 
     if (rv < 0)
     {
+        if (g_send_audio)
+        {
+            printf("-------------- g_send_audio 3\n");
+        }
+        
         int err = SSL_get_error(connection->ssl, rv);
 
         if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
@@ -159,7 +172,18 @@ static ssize_t recv_callback(nghttp2_session *session, uint8_t *buf,
             rv = NGHTTP2_ERR_CALLBACK_FAILURE;
     }
     else if (rv == 0)
+    {
+        if (g_send_audio)
+        {
+            printf("-------------- g_send_audio 4\n");
+        }
         rv = NGHTTP2_ERR_EOF;
+    }
+
+    if (g_send_audio)
+    {
+        printf("-------------- g_send_audio 5, %d\n", rv);
+    }
 
     return rv;
 }
@@ -205,22 +229,40 @@ static int on_frame_recv_callback(nghttp2_session *session,
     size_t i;
     (void)user_data;
 
+    //verbose_recv_frame(session, frame);
+
+
+
+    if (g_send_audio)
+    {
+        printf("-------------- g_send_audio 6, type=%d\n", frame->hd.type);
+    }
+
+
     switch (frame->hd.type)
     {
+        case NGHTTP2_SETTINGS:
+            printf("---------------------------- NGHTTP2_SETTINGS\n");
+            verbose_recv_frame(session, frame);
+            break;
+        case NGHTTP2_PUSH_PROMISE:
+            printf("---------------------------- NGHTTP2_PUSH_PROMISE\n");
+            verbose_recv_frame(session, frame);
+            break;
+        case NGHTTP2_DATA:
+            printf("---------------------------- NGHTTP2_DATA\n");
+            verbose_recv_frame(session, frame);
+            if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM)
+            {
+                printf("---------------------------- NGHTTP2_FLAG_END_STREAM\n");
+            }
+            break;
+            
         case NGHTTP2_HEADERS:
             if (frame->headers.cat == NGHTTP2_HCAT_RESPONSE)
             {
                 const nghttp2_nv *nva = frame->headers.nva;
                 printf("[INFO] C <---------------------------- S (HEADERS)\n");
-
-                for (i = 0; i < frame->headers.nvlen; ++i)
-                {
-                    fwrite(nva[i].name, 1, nva[i].namelen, stdout);
-                    printf(": ");
-                    fwrite(nva[i].value, 1, nva[i].valuelen, stdout);
-                    printf("\n");
-                }
-
                 verbose_recv_frame(session, frame);
 
                 req_ctx_t* req_ctx = (req_ctx_t*)nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
@@ -233,15 +275,19 @@ static int on_frame_recv_callback(nghttp2_session *session,
 
         case NGHTTP2_RST_STREAM:
             printf("[INFO] C <---------------------------- S (RST_STREAM)\n");
+            verbose_recv_frame(session, frame);
             break;
 
         case NGHTTP2_GOAWAY:
             printf("[INFO] C <---------------------------- S (GOAWAY)\n");
+            verbose_recv_frame(session, frame);
             break;
     }
 
     return 0;
 }
+
+extern int g_quit;
 
 static int on_data_chunk_recv_callback(nghttp2_session *session, uint8_t flags,
                                        int32_t stream_id, const uint8_t *data,
@@ -252,12 +298,23 @@ static int on_data_chunk_recv_callback(nghttp2_session *session, uint8_t flags,
     printf("[INFO] C <---------------------------- S (DATA chunk)\n"
            "%lu bytes\n",
            (unsigned long int)len);
-    fwrite(data, 1, len, stdout);
-    printf("\n");
-    req_ctx_t* req_ctx = (req_ctx_t*)nghttp2_session_get_stream_user_data(session, stream_id);
+    //fwrite(data, 1, len, stdout);
+    //printf("\n");
+    //req_ctx_t* req_ctx = (req_ctx_t*)nghttp2_session_get_stream_user_data(session, stream_id);
 
-    if (req_ctx)
-        req_ctx->body_resp_cb(data, len);
+    //if (req_ctx)
+    //    req_ctx->body_resp_cb(data, len);
+
+	printf("========= get audio body resp\n");
+	FILE* f = fopen("audio.dat", "wb");
+	if (f)
+	{
+		fwrite(data, 1, len, f);
+		fclose(f);
+	}
+
+    g_quit = 1;
+
 
     return 0;
 }
@@ -269,10 +326,10 @@ static int on_stream_close_callback(nghttp2_session *session, int32_t stream_id,
     (void)user_data;
     int rv;
     printf("=================== close\n");
-    rv = nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
+    //rv = nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
 
-    if (rv != 0)
-        diec("nghttp2_session_terminate_session", rv);
+    //if (rv != 0)
+    //    diec("nghttp2_session_terminate_session", rv);
 
     return 0;
 }
@@ -283,15 +340,45 @@ static int on_header_callback(nghttp2_session *session, const nghttp2_frame *fra
     return 0;
 }
 
+static int verbose_on_invalid_frame_recv_callback(nghttp2_session *session, const nghttp2_frame *frame, int lib_error_code, void *user_data)
+{
+    printf("----- verbose_on_invalid_frame_recv_callback\n");
+    return 0;
+}
+
+static int verbose_error_callback(nghttp2_session *session, const char *msg, size_t len, void *user_data)
+{
+    printf("----- verbose_error_callback\n");
+    return 0;
+}
+
+
+static int on_frame_not_send_callback(nghttp2_session *session, const nghttp2_frame *frame, int lib_error_code, void *user_data)
+{
+    printf("----- on_frame_not_send_callback\n");
+    return 0;
+}
+
+int on_send_data_callback(nghttp2_session *session, nghttp2_frame *frame, const uint8_t *framehd, size_t length, nghttp2_data_source *source, void *user_data)
+{
+    printf("----- on_send_data_callback, %d\n", length);
+    return 0;
+}
+
 static void setup_nghttp2_callbacks(nghttp2_session_callbacks *callbacks)
 {
     nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
     nghttp2_session_callbacks_set_recv_callback(callbacks, recv_callback);
     nghttp2_session_callbacks_set_on_frame_send_callback(callbacks, on_frame_send_callback);
+    nghttp2_session_callbacks_set_send_data_callback(callbacks, on_send_data_callback);
     nghttp2_session_callbacks_set_on_frame_recv_callback(callbacks, on_frame_recv_callback);
     nghttp2_session_callbacks_set_on_data_chunk_recv_callback(callbacks, on_data_chunk_recv_callback);
     nghttp2_session_callbacks_set_on_stream_close_callback(callbacks, on_stream_close_callback);
     nghttp2_session_callbacks_set_on_header_callback(callbacks, on_header_callback);
+
+    nghttp2_session_callbacks_set_on_invalid_frame_recv_callback(callbacks, verbose_on_invalid_frame_recv_callback);
+    nghttp2_session_callbacks_set_error_callback(callbacks, verbose_error_callback);   
+    nghttp2_session_callbacks_set_on_frame_not_send_callback(callbacks, on_frame_not_send_callback);
 }
 
 static int select_next_proto_cb(SSL *ssl, unsigned char **out,
@@ -520,6 +607,8 @@ static int parse_uri(struct URI *res, const char *uri)
     return 0;
 }
 
+extern int api_system_sync_state();
+
 static int down_channel_resp_cb(nghttp2_nv* nva, int nvlen)
 {
     int i;
@@ -533,6 +622,8 @@ static int down_channel_resp_cb(nghttp2_nv* nva, int nvlen)
         printf("\n");
     }
 
+    api_system_sync_state();
+
     return 0;
 }
 
@@ -541,13 +632,18 @@ static int create_down_channel()
     int stream_id;
     nghttp2_nv http2_head[] = {MAKE_NV(":method", "GET"),
                                MAKE_NV(":scheme", "https"),
+                               MAKE_NV_CS(":authority", "avs-alexa-na.amazon.com"),
                                MAKE_NV_CS(":path", "/v20160207/directives"),
+                               MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary"),
                                MAKE_NV_CS("authorization", get_token())
+                               
                               };
     req_ctx_t* ctx = (req_ctx_t*)malloc(sizeof(req_ctx_t));
     ctx->head_resp_cb = down_channel_resp_cb;
     ctx->body_resp_cb = 0;
-    stream_id = nghttp2_submit_request(connection.session, NULL, http2_head, 4, NULL, ctx);
+
+    printf("------------------------------- submit down channle request\n");
+    stream_id = nghttp2_submit_request(connection.session, NULL, http2_head, 6, NULL, ctx);
 
     if (stream_id < 0)
         diec("nghttp2_submit_request", stream_id);
@@ -578,8 +674,10 @@ ssize_t data_source_read_callback(nghttp2_session *session, int32_t stream_id, u
     else
         copy_len = length;
 
-    memcpy(buf, content->data, copy_len);
-    content->pos = content->len - copy_len;
+    memcpy(buf, content->data + content->pos, copy_len);
+    content->pos += copy_len;
+
+    printf("=====================part size = %d\n", copy_len);
     return copy_len;
 }
 
@@ -592,7 +690,7 @@ http2_content_t* build_http2_content(char* event_json, char* state_json, char* a
     char* str1 = "--uniview-boundary\n"
                  "Content-Disposition: form-data; name=\"metadata\"\n"
                  "Content-Type: application/json; charset=UTF-8\n\n";
-    char* str2 = "--uniview-boundary\n"
+    char* str2 = "\n--uniview-boundary\n"
                  "Content-Disposition: form-data; name=\"audio\"\n"
                  "Content-Type: application/octet-stream\n\n";
     char* str3 = "--uniview-boundary--";
@@ -631,16 +729,32 @@ http2_content_t* build_http2_content(char* event_json, char* state_json, char* a
     {
         strcpy(pos, str2);
         pos += strlen(str2);
+        *pos = 0;
+        printf("%s\n", buf);
+
         memcpy(pos, audio_data, audio_len);
+        for (int i=0; i<100; i++)
+        {
+            printf("%c", pos[i]);
+        }
+        printf("\n");
+        
         pos += audio_len;
+
+        
     }
 
     strcpy(pos, str3);
     pos += strlen(str3);
+
     content = (http2_content_t*)malloc(sizeof(http2_content_t));
     content->data = buf;
     content->len = pos - buf;
     content->pos = 0;
+
+
+    printf("============================== total size: %d\n", content->len);
+    
     return content;
 }
 
@@ -650,9 +764,11 @@ int conn_send_request(char* event_json, char* state_json, char* audio_data, int 
     int stream_id;
     nghttp2_nv http2_head[] = {MAKE_NV(":method", "POST"),
                                MAKE_NV(":scheme", "https"),
-                               MAKE_NV_CS(":path", "/v20160207/directives"),
-                               MAKE_NV_CS("authorization", get_token()),
-                               MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary")
+                               MAKE_NV_CS(":authority", "avs-alexa-na.amazon.com"),
+                               MAKE_NV_CS(":path", "/v20160207/events"),
+                               MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary"),
+                               MAKE_NV_CS("authorization", get_token())
+                               
                               };
     http2_content_t* http2_content = build_http2_content(event_json, state_json, audio_data, audio_len);
     nghttp2_data_provider data_prd;
@@ -661,7 +777,7 @@ int conn_send_request(char* event_json, char* state_json, char* audio_data, int 
     req_ctx_t* ctx = (req_ctx_t*)malloc(sizeof(req_ctx_t));
     ctx->head_resp_cb = head_resp_cb;
     ctx->body_resp_cb = body_resp_cb;
-    stream_id = nghttp2_submit_request(connection.session, NULL, http2_head, 5, &data_prd, ctx);
+    stream_id = nghttp2_submit_request(connection.session, NULL, http2_head, 6, &data_prd, ctx);
 
     if (stream_id < 0)
         diec("nghttp2_submit_request", stream_id);
@@ -717,7 +833,11 @@ static void recv_thread(const struct URI *uri)
     if (rv != 0)
         diec("nghttp2_session_client_new", rv);
 
-    rv = nghttp2_submit_settings(connection.session, NGHTTP2_FLAG_NONE, NULL, 0);
+    nghttp2_settings_entry iv[2] = {
+                                       {NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100},
+                                       {NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE, 65535},
+                                   };
+    rv = nghttp2_submit_settings(connection.session, NGHTTP2_FLAG_NONE, iv, 2);
 
     if (rv != 0)
         diec("nghttp2_submit_settings", rv);
@@ -746,6 +866,11 @@ static void recv_thread(const struct URI *uri)
         if (rv == 0)
         {
             continue;            
+        }
+
+        if (g_send_audio)
+        {
+            printf("-------------- g_send_audio 1\n");
         }
         rv = nghttp2_session_recv(connection.session);
         if (rv != 0)
