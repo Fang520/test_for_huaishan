@@ -850,6 +850,9 @@ static void recv_thread(const struct URI *uri)
     tv.tv_usec = 100000;
     while (recv_thread_quit == 0)
     {
+        send_msg();
+        
+    
         if (nghttp2_session_want_write(connection.session) || connection.want_io == WANT_WRITE)
         {
             rv = nghttp2_session_send(connection.session);
@@ -918,3 +921,54 @@ int conn_close()
     pthread_join(pid_thread, NULL);
     return 0;
 }
+
+void send_msg()
+{
+    msg_t* msg = get_msg();
+    if (msg)
+    {
+        int stream_id;
+        nghttp2_nv http2_head[] = {MAKE_NV(":method", "GET"),
+                                   MAKE_NV(":scheme", "https"),
+                                   MAKE_NV_CS(":authority", "avs-alexa-na.amazon.com"),
+                                   MAKE_NV_CS(":path", "/v20160207/directives"),
+                                   MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary"),
+                                   MAKE_NV_CS("authorization", get_token())
+                                   
+                                  };
+        req_ctx_t* ctx = (req_ctx_t*)malloc(sizeof(req_ctx_t));
+        ctx->head_resp_cb = down_channel_resp_cb;
+        ctx->body_resp_cb = 0;
+
+        printf("------------------------------- submit down channle request\n");
+        stream_id = nghttp2_submit_request(connection.session, NULL, http2_head, 6, NULL, ctx);
+
+        if (stream_id < 0)
+            diec("nghttp2_submit_request", stream_id); 
+
+
+
+        int stream_id;
+        nghttp2_nv http2_head[] = {MAKE_NV(":method", "POST"),
+                                   MAKE_NV(":scheme", "https"),
+                                   MAKE_NV_CS(":authority", "avs-alexa-na.amazon.com"),
+                                   MAKE_NV_CS(":path", "/v20160207/events"),
+                                   MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary"),
+                                   MAKE_NV_CS("authorization", get_token())
+                                   
+                                  };
+        http2_content_t* http2_content = build_http2_content(event_json, state_json, audio_data, audio_len);
+        nghttp2_data_provider data_prd;
+        data_prd.read_callback = data_source_read_callback;
+        data_prd.source.ptr = (void*)http2_content;
+        req_ctx_t* ctx = (req_ctx_t*)malloc(sizeof(req_ctx_t));
+        ctx->head_resp_cb = head_resp_cb;
+        ctx->body_resp_cb = body_resp_cb;
+        stream_id = nghttp2_submit_request(connection.session, NULL, http2_head, 6, &data_prd, ctx);
+
+        if (stream_id < 0)
+            diec("nghttp2_submit_request", stream_id);
+            
+    }
+}
+
