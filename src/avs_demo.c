@@ -1,24 +1,38 @@
 #include <stdio.h>
 #include "msgqueue.h"
 
+pthread_t pid_thread;
 int avs_thread_quit_flag = 0;
+msg_queue_t* send_queue = 0;
+msg_queue_t* recv_queue = 0;
 
-void do_step1()
+void on_connected()
 {
-    msg_t* msg = build_msg('step2');
+    msg_t* msg = build_create_downchannel_msg();
     add_msg_to_send_queue(msg);
 }
 
-void do_step2()
+void on_downchannel_created()
 {
-    msg_t* msg = build_msg('step3');
+    msg_t* msg = build_sync_state_msg();
     add_msg_to_send_queue(msg);
 }
 
-void do_step3()
+void on_timer()
 {
-    msg_t* msg = build_msg('data');
+    msg_t* msg = build_sync_state_msg();
     add_msg_to_send_queue(msg);
+}
+
+void on_ask()
+{
+    msg_t* msg = build_ask_msg();
+    add_msg_to_send_queue(msg);
+}
+
+void on_reply(buf)
+{
+    playback(buf);
 }
 
 void do_keeplive()
@@ -26,39 +40,31 @@ void do_keeplive()
     printf("nothing\n");
 }
 
-void do_timer()
-{
-    msg_t* msg = build_msg('keeplive');
-    add_msg_to_send_queue(msg);  
-}
-
-void do_data(buf)
-{
-    playback(buf);
-}
-
-
 void handle(msg_t* msg)
 {
-    if (msg->type == 'step1')
+    if (msg->type == 'connected')
     {
-        do_step1();
+        on_connected();
     }
-    if (msg->type == 'step2')
+    if (msg->type == 'downchannel_created')
     {
-        do_step2();
+        on_downchannel_created();
     }
-    if (msg->type == 'step3')
+    if (msg->type == 'ask')
     {
-        do_step3();
+        on_ask();
     }
     if (msg->type == 'keeplive')
     {
         do_keeplive();
     }
-    if (msg->type == 'data')
+    if (msg->type == 'reply')
     {
-        do_data();
+        on_reply();
+    }
+    if (msg->type == 'timer')
+    {
+        on_timer();
     }
 }
 
@@ -66,6 +72,7 @@ void avs_thread()
 {
     while (avs_thread_quit_flag == 0)
     {
+        http2_loop();
         if (msg_t* msg = get_msg_from_send_queue())
         {
             http2_send_msg(msg);
@@ -78,14 +85,31 @@ void avs_thread()
         }
         if (get_timer())
         {
-            do_timer();
+            on_timer();
         }
     }
 }
 
-void http2_cb(char* buf)
+void http2_cb(char* head, char* body)
 {
-    msg_t* msg = build_msg(buf);
+    msg_t* msg;
+    if (head == 'connected')
+    {
+        msg->type = 'connected';
+    }
+    if (head == 'sync')
+    {
+        msg->type = 'sync';
+    }
+    if (head == 'downchannel')
+    {
+        msg->type = 'downchannel';
+    }
+    if (head == 'data')
+    {
+        msg->type = 'reply';
+        msg->data = body;
+    }
     add_msg_to_recv_queue(msg);
 }
 
@@ -106,42 +130,39 @@ void stop_connection()
     destroy_recv_queue();
 }
 
-void create_send_queue()
-{
-}
-
-void create_recv_queue()
-{
-}
-
-void create_http2(http2_cb_t cb)
-{
-}
-
 void start_thread()
 {
+    pthread_create(&pid_thread, 0, (void*)avs_thread, 0);
 }
 
 void wait_for_safe_close()
 {
+    pthread_join(pid_thread, NULL);
 }
 
-void destroy_http2()
+int get_timer()
 {
+    return 0;
 }
 
-void send_1()
+void test_1()
 {
-    char* buf = load_pcm('1.pcm');
-    msg_t* msg = build_msg(buf);
+    int len;
+    char* buf = load_pcm('1.pcm', &len);
+    msg_t* msg = build_ask_msg(buf, len);
     add_msg_to_send_queue(msg);
 }
 
-void send_2()
+void test_2()
 {
-    char* buf = load_pcm('2.pcm');
-    msg_t* msg = build_msg(buf);
-    add_msg_to_queue(msg);
+    int len;
+    char* buf = load_pcm('2.pcm', &len);
+    msg_t* msg = build_ask_msg(buf, len);
+    add_msg_to_send_queue(msg);
+}
+
+void playback(char* buf, int len)
+{
 }
 
 int main(int argc, char** argv)
@@ -153,8 +174,8 @@ int main(int argc, char** argv)
         printf("%s\n", c);
         switch (c)
         {
-            case '1': send_1();
-            case '2': send_2();
+            case '1': test_1();
+            case '2': test_2();
             case 'q': break;
         }
     }

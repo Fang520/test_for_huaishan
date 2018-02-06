@@ -13,6 +13,9 @@ typedef struct{
     char msg[0];
 }msg_queue_t;
 
+typedef struct{
+}msg_t;
+
 extern msg_queue_t *CreateMsgQueue(unsigned int msgMax,unsigned int msgSize);
 
 extern int DestoryMsgQueue(msg_queue_t *msgQueue);

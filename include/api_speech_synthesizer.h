@@ -1,5 +1,0 @@
-#ifndef API_SPEECH_SYNTHESIZER_H
-#define API_SPEECH_SYNTHESIZER_H
-
-#endif
-

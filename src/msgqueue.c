@@ -79,3 +79,46 @@ int RecvMsg(msg_queue_t *msgQueue,void *msg,int blocked)
     return ret; 
 } 
 
+void add_msg_to_send_queue(msg_t* msg)
+{
+}
+
+void free_msg()
+{
+}
+
+
+void create_send_queue()
+{
+    send_queue = CreateMsgQueue(100, sizeof(char*));
+}
+
+void create_recv_queue()
+{
+    recv_queue = CreateMsgQueue(100, sizeof(char*));
+}
+
+void destroy_send_queue()
+{
+}
+
+void destroy_recv_queue()
+{
+}
+
+void add_msg_to_send_queue()
+{
+}
+
+void add_msg_to_recv_queue()
+{
+}
+
+msg_t* get_msg_from_send_queue()
+{
+}
+
+msg_t* get_msg_from_recv_queue()
+{
+}
+
