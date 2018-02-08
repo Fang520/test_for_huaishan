@@ -105,7 +105,9 @@ char* get_token()
 
     SSL_shutdown(conn);
     SSL_free(conn);
-    close(sockfd);
+    SSL_CTX_free(ssl_ctx);
+    shutdown(sockfd, SHUT_WR);
+    close(sockfd);    
 
     memcpy(p1 - 7, "Bearer ", 7);
     token = p1 - 7;

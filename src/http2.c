@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "http2.h"
 
 SSL_CTX *ssl_ctx;
 SSL *ssl;
@@ -160,14 +161,17 @@ void http2_run()
 {
     fd_set fdset;
     struct timeval tv;
+
     tv.tv_sec = 0;
     tv.tv_usec = 100000;
-    if (nghttp2_session_want_write(connection.session) || connection.want_io == WANT_WRITE)
+
+    if (nghttp2_session_want_write(session))
     {
-        rv = nghttp2_session_send(connection.session);
+        rv = nghttp2_session_send(session);
         if (rv != 0)
             diec("nghttp2_session_send", rv);        
     }
+
     FD_ZERO(&fdset);
     FD_SET(fd, &fdset);
     rv = select(fd + 1, &fdset, NULL, NULL, &tv);
@@ -179,7 +183,7 @@ void http2_run()
     {
         continue;            
     }
-    rv = nghttp2_session_recv(connection.session);
+    rv = nghttp2_session_recv(session);
     if (rv != 0)
         diec("nghttp2_session_recv", rv);
 }
@@ -190,9 +194,8 @@ void http2_send_msg()
     nghttp2_nv http2_head[] = {MAKE_NV(":method", "POST"),
                                MAKE_NV(":scheme", "https"),
                                MAKE_NV_CS(":path", "/v20160207/directives"),
-                               MAKE_NV_CS("authorization", get_token()),
-                               MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary")
-                              };
+                               MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary"),
+                               MAKE_NV_CS("authorization", get_token())};
     http2_content_t* http2_content = build_http2_content(event_json, state_json, audio_data, audio_len);
     nghttp2_data_provider data_prd;
     data_prd.read_callback = data_source_read_callback;
@@ -207,6 +210,17 @@ void http2_send_msg()
 
     http2_content->stream_id = stream_id;
 }
+
+static void create_down_channel_msg_send()
+{
+    nghttp2_nv head[] = {MAKE_NV(":method", "GET"),
+                         MAKE_NV(":scheme", "https"),
+                         MAKE_NV_CS(":path", "/v20160207/directives"),
+                         MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary"),
+                         MAKE_NV_CS("authorization", get_token())};
+    nghttp2_submit_request(session, 0, head, 5, 0, 0);
+}
+
 
 void create_http2(http2_cb_t cb)
 {

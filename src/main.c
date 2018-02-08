@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include "token.h"
+#include "http2.h"
 
 pthread_t pid_thread;
 int avs_thread_quit_flag = 0;
@@ -46,6 +48,7 @@ void http2_cb(char* head, char* body)
 
 void start_connection()
 {
+    get_token();
     create_http2(http2_cb);
     start_thread(avs_thread);
 }

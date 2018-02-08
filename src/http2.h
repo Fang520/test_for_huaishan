@@ -1,0 +1,1 @@
+typedef void (*http2_cb_t)(char* type, int len, char* value);
