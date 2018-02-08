@@ -130,18 +130,9 @@ static int data_chunk_recv_callback(nghttp2_session *session, uint8_t flags,
     return 0;
 }
 
-static int stream_close_callback(nghttp2_session *session, int32_t stream_id,
-                                    uint32_t error_code, void *user_data)
+static int stream_close_callback(nghttp2_session *session, int32_t stream_id, uint32_t error_code, void *user_data)
 {
-    (void)error_code;
-    (void)user_data;
-    int rv;
-    printf("=================== close\n");
-    rv = nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
-
-    if (rv != 0)
-        diec("nghttp2_session_terminate_session", rv);
-
+    nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
     return 0;
 }
 
@@ -211,17 +202,6 @@ void http2_send_msg()
     http2_content->stream_id = stream_id;
 }
 
-static void create_down_channel_msg_send()
-{
-    nghttp2_nv head[] = {MAKE_NV(":method", "GET"),
-                         MAKE_NV(":scheme", "https"),
-                         MAKE_NV_CS(":path", "/v20160207/directives"),
-                         MAKE_NV("content-type", "multipart/form-data; boundary=uniview-boundary"),
-                         MAKE_NV_CS("authorization", get_token())};
-    nghttp2_submit_request(session, 0, head, 5, 0, 0);
-}
-
-
 void create_http2(http2_cb_t cb)
 {
     SSL_load_error_strings();
@@ -258,6 +238,7 @@ void create_http2(http2_cb_t cb)
 
 void destroy_http2()
 {
+    nghttp2_submit_goaway(session);
     nghttp2_session_del(session);
     SSL_shutdown(ssl);
     SSL_free(ssl);
