@@ -8,10 +8,10 @@ typedef struct
     int pos;
 } body_adapter_t;
 
-SSL_CTX *ssl_ctx;
-SSL *ssl;
-nghttp2_session *session;
-int fd, val;
+static SSL_CTX *ssl_ctx;
+static SSL *ssl;
+static nghttp2_session *session;
+static int fd, val;
 http2_cb_t user_callback;
 
 static ssize_t send_callback(nghttp2_session *session, const uint8_t *data, size_t length, int flags, void *user_data)
@@ -39,8 +39,6 @@ static ssize_t recv_callback(nghttp2_session *session, uint8_t *buf,
 {
     struct Connection *connection;
     int rv;
-    (void)session;
-    (void)flags;
     connection = (struct Connection *)user_data;
     connection->want_io = IO_NONE;
     ERR_clear_error();
@@ -70,22 +68,23 @@ static int frame_recv_callback(nghttp2_session *session, const nghttp2_frame *fr
     verbose_recv_frame(session, frame);
     if (frame->hd.type == NGHTTP2_HEADERS && frame->headers.cat == NGHTTP2_HCAT_RESPONSE)
     {
-        const nghttp2_nv *nva = frame->headers.nva;
-        for (int i = 0; i < frame->headers.nvlen; i++)
+        int len = frame->headers.nvlen;
+        http2_head_t* head = (http2_head_t*)malloc(sizeof(http2_head_t) * len;        
+        nghttp2_nv *nva = frame->headers.nva;
+        for (int i = 0; i < len; i++)
         {
-            fwrite(nva[i].name, 1, nva[i].namelen, stdout);
-            printf(": ");
-            fwrite(nva[i].value, 1, nva[i].valuelen, stdout);
-            printf("\n");
+            head[i].name = nva[i].name;
+            head[i].value = nva[i].value;
         }
-        user_callback("head", head, len);
+        user_callback("head", frame->hd.stream_id, head, len);
+        free(head);
     }
     return 0;
 }
 
 static int data_chunk_recv_callback(nghttp2_session *session, uint8_t flags, int32_t stream_id, const uint8_t *data, size_t len, void *user_data)
 {
-    user_callback("data", data, len);
+    user_callback(stream_id, "data", data, len);
     return 0;
 }
 
@@ -127,34 +126,38 @@ static ssize_t body_adapter_read_callback(nghttp2_session *session, int32_t stre
     return copy_len;
 }
 
-static body_adapter_t* body_adapter(char* data)
+static body_adapter_t* body_adapter(char* data, int len)
 {
     static body_adapter_t adapter;
     adapter->body = data;
-    adapter->len = strlen(data);
+    adapter->len = len;
     adapter->pos = 0;    
     return &adapter;
 }
 
-void http2_send_msg(http2_head_t* head, char* body)
+int http2_send_msg(http2_head_t[] head, int head_len, char* body, int body_len)
 {
-    nghttp2_nv* raw_head = (nghttp2_nv*)malloc(sizeof(nghttp2_nv) * head->count);
-    for (int i=0; i<head->count; i++)
+    int sid;
+    
+    nghttp2_nv* raw_head = (nghttp2_nv*)malloc(sizeof(nghttp2_nv) * head_len);
+    for (int i=0; i<head_len; i++)
     {
-        raw_head[i].name = head->items[i].name;
-        raw_head[i].namelen = strlen(head->items[i].name);
-        raw_head[i].value = head->items[i].value;
-        raw_head[i].valuelen = strlen(head->items[i].value);
+        raw_head[i].name = head[i].name;
+        raw_head[i].namelen = strlen(head[i].name);
+        raw_head[i].value = head[i].value;
+        raw_head[i].valuelen = strlen(head[i].value);
         raw_head[i].flags = NGHTTP2_NV_FLAG_NONE;
     }
 
     nghttp2_data_provider raw_body;
-    raw_body.source.ptr = (void*)body_adapter(body);
+    raw_body.source.ptr = (void*)body_adapter(body, body_len);
     raw_body.read_callback = body_adapter_read_callback;
 
-    nghttp2_submit_request(session, 0, raw_head, head->count, &raw_body, 0);
+    sid = nghttp2_submit_request(session, 0, raw_head, head->count, &raw_body, 0);
 
     free(raw_head);
+
+    return sid;
 }
 
 void http2_run()
