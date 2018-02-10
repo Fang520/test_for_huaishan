@@ -1,3 +1,6 @@
+#include "http2.h"
+#include "msg_ask.h"
+#if 0
 http2_content_t* build_http2_content(char* event_json, char* state_json, char* audio_data, int audio_len)
 {
     char* buf;
@@ -107,3 +110,10 @@ msg_t* build_ask_msg()
 	return 0;
 
 }
+#endif
+
+int msg_ask_send()
+{
+    return 0;
+}
+

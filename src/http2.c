@@ -1,4 +1,22 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <poll.h>
+#include <errno.h>
+
+#include <nghttp2/nghttp2.h>
+
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/conf.h>
+
+#include "verbose.h"
+
 #include "http2.h"
 
 typedef struct
@@ -11,7 +29,7 @@ typedef struct
 static SSL_CTX *ssl_ctx;
 static SSL *ssl;
 static nghttp2_session *session;
-static int fd, val;
+static int sock;
 http2_cb_t user_callback;
 
 static ssize_t send_callback(nghttp2_session *session, const uint8_t *data, size_t length, int flags, void *user_data)
@@ -66,37 +84,32 @@ static ssize_t recv_callback(nghttp2_session *session, uint8_t *buf,
 static int frame_recv_callback(nghttp2_session *session, const nghttp2_frame *frame, void *user_data)
 {
     verbose_recv_frame(session, frame);
-    if (frame->hd.type == NGHTTP2_HEADERS && frame->headers.cat == NGHTTP2_HCAT_RESPONSE)
+    if (frame->hd.type == NGHTTP2_SETTINGS && frame->hd.flags = 0x01)
     {
-        int len = frame->headers.nvlen;
-        http2_head_t* head = (http2_head_t*)malloc(sizeof(http2_head_t) * len;        
-        nghttp2_nv *nva = frame->headers.nva;
-        for (int i = 0; i < len; i++)
-        {
-            head[i].name = nva[i].name;
-            head[i].value = nva[i].value;
-        }
-        user_callback("head", frame->hd.stream_id, head, len);
-        free(head);
+        user_callback(EVENT_TYPE_INIT, frame->hd.stream_id, 0, 0);
     }
     return 0;
 }
 
 static int data_chunk_recv_callback(nghttp2_session *session, uint8_t flags, int32_t stream_id, const uint8_t *data, size_t len, void *user_data)
 {
-    user_callback(stream_id, "data", data, len);
+    user_callback(EVENT_TYPE_DATA, stream_id, data, len);
     return 0;
 }
 
 static int stream_close_callback(nghttp2_session *session, int32_t stream_id, uint32_t error_code, void *user_data)
 {
-    nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
+    verbose_stream_close(session, stream_id, error_code);
     return 0;
 }
 
 static int header_callback(nghttp2_session *session, const nghttp2_frame *frame, const uint8_t *name, size_t namelen, const uint8_t *value, size_t valuelen, uint8_t flags, void *user_data)
 {
     verbose_header(session, frame, name, namelen, value, valuelen, flags, user_data);
+    if (strncasecmp(name, ":status", namelen) == 0)
+    {
+        user_callback(EVENT_TYPE_RESP_CODE, frame->hd.stream_id, value, valuelen);
+    }
     return 0;
 }
 
@@ -176,8 +189,8 @@ void http2_run()
     }
 
     FD_ZERO(&fdset);
-    FD_SET(fd, &fdset);
-    rv = select(fd + 1, &fdset, NULL, NULL, &tv);
+    FD_SET(sock, &fdset);
+    rv = select(sock + 1, &fdset, NULL, NULL, &tv);
     if (rv < 0)
     {
         diec("select fail", rv);
@@ -194,7 +207,7 @@ void http2_run()
 void http2_create(http2_cb_t cb)
 {
     nghttp2_session_callbacks *callbacks;
-    int flags;
+    int flags, val;
 
     user_callback = cb;
 
@@ -207,15 +220,15 @@ void http2_create(http2_cb_t cb)
     SSL_CTX_set_next_proto_select_cb(ssl_ctx, select_next_proto_cb, 0);    
     ssl = SSL_new(ssl_ctx);
     
-    fd = socket(AF_INET, SOCK_STREAM, 0);
-    connect(fd, rp->ai_addr, rp->ai_addrlen);
-    SSL_set_fd(ssl, fd);
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    connect(sock, rp->ai_addr, rp->ai_addrlen);
+    SSL_set_fd(ssl, sock);
     SSL_connect(ssl);
 
-    flags = fcntl(fd, F_GETFL, 0);
-    fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
     val = 1;
-    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, (socklen_t)sizeof(val));
+    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &val, (socklen_t)sizeof(val));
 
     nghttp2_session_callbacks_new(&callbacks);
     nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
@@ -232,12 +245,12 @@ void http2_create(http2_cb_t cb)
 
 void http2_destroy()
 {
-    //nghttp2_submit_goaway(session);
+    nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
     nghttp2_session_del(session);
     SSL_shutdown(ssl);
     SSL_free(ssl);
     SSL_CTX_free(ssl_ctx);
-    shutdown(fd, SHUT_WR);
-    close(fd);
+    shutdown(sock, SHUT_WR);
+    close(sock);
 }
 

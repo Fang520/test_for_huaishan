@@ -1,6 +1,10 @@
 #ifndef HTTP2_H
 #define HTTP2_H
 
+#define EVENT_TYPE_INIT 0
+#define EVENT_TYPE_DATA 1
+#define EVENT_TYPE_RESP_CODE 2
+
 typedef void (*http2_cb_t)(char* type, int sid, char* data, int len);
 
 typedef struct {

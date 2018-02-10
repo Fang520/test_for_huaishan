@@ -1,101 +1,112 @@
 #include <stdio.h>
-#include "token.h"
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
 #include "http2.h"
+#include "token.h"
+#include "msg_ask.h"
+#include "msg_downchannle.h"
+#include "msg_sync_state.h"
 
-pthread_t pid_thread;
-int avs_thread_quit_flag = 0;
+static pthread_t pid_thread = 0;
+static int quit_flag = 0;
+static int sid_downchannel = 0;
 
-void on_connected()
+static void on_data(char* data, int len)
 {
-    http2_send_create_downchannel_msg();
-}
-
-void on_downchannel_resp()
-{
-    http2_send_sync_state_msg();
-}
-
-void on_reply_req(buf)
-{
-    playback(buf);
-}
-
-void on_timer()
-{
-    http2_send_sync_state_msg();
-}
-
-void http2_cb(char* head, char* body)
-{
-    msg_t* msg;
-    if (head == 'connected')
+    static int sn = 0;
+    char name[32];
+    sprintf(name, "data_%d.txt", sn);
+    FILE* fp = fopen(name, "wb");
+    if (fp)
     {
-        on_connected();
+        fwrite(data, 1, len, fp);
+        fclose(fp);
     }
-    if (head == 'sync')
+    sn++;
+}
+
+static void http2_cb(char* type, int sid, char* data, int len)
+{
+    if (type == EVENT_TYPE_INIT)
     {
-        on_sync_resp();
+        sid_downchannel = msg_downchannel_send();
     }
-    if (head == 'downchannel')
+    else if (type == EVENT_TYPE_RESP_CODE)
     {
-        on_downchannel_created();
+        if (strncmp(data, "200", len) == 0)
+        {
+            if (sid == sid_downchannel)
+            {
+                msg_sync_state_send();
+            }
+        }
+        else
+        {
+            quit_flag = 1;
+        }
     }
-    if (head == 'data')
+    else if (type == EVENT_TYPE_DATA)
     {
-        on_reply();
+        on_data(data, len);
     }
 }
 
-void start_connection()
+static void start_connection()
 {
     get_token();
-    create_http2(http2_cb);
-    start_thread(avs_thread);
+    http2_create(http2_cb);
+    start_thread(thread);
 }
 
-void stop_connection()
+static void stop_connection()
 {
-    avs_thread_quit_flag = 1;
+    quit_flag = 1;
     wait_for_safe_close();
-    destroy_http2();
+    http2_destroy();
 }
 
-void start_thread()
+static void start_thread()
 {
-    pthread_create(&pid_thread, 0, (void*)avs_thread, 0);
+    pthread_create(&pid_thread, 0, (void*)thread, 0);
 }
 
-void wait_for_safe_close()
+static void wait_for_safe_close()
 {
-    pthread_join(pid_thread, NULL);
+    pthread_join(pid_thread, 0);
 }
 
-void timer_process()
+static void thread()
 {
-    on_timer();
-}
-
-void avs_thread()
-{
-    while (avs_thread_quit_flag == 0)
+    while (quit_flag == 0)
     {
-        http2_process();
-        timer_process();
+        http2_run();
     }
 }
 
-void test_1()
+static char* load_pcm(char* name, int* len)
 {
-    int len;
-    char* buf = load_pcm('1.pcm', &len);
-    http2_send_ask_msg(buf, len);
+    char* buf = 0;
+    int size = 0;
+    FILE* fp = fopen(name, "rb");
+    if (fp)
+    {
+        size = ftell(fp);
+        rewind(fp);
+        buf = (char*)malloc(size);
+        fread(buf, 1, size, fp);
+        fclose(fp);
+    }
+    *len = size;
+    return buf;
 }
 
-void test_2()
+static void test()
 {
     int len;
-    char* buf = load_pcm('2.pcm', &len);
-    http2_send_ask_msg(buf, len);
+    char* buf = load_pcm('test.pcm', &len);
+    msg_ask_send(buf, len);
+    free(buf);
 }
 
 int main(int argc, char** argv)
@@ -104,11 +115,10 @@ int main(int argc, char** argv)
     while (1)
     {
         char c = getchar();
-        printf("%s\n", c);
+        printf("input: %c\n", c);
         switch (c)
         {
-            case '1': test_1();
-            case '2': test_2();
+            case '1': test();
             case 'q': break;
         }
     }
