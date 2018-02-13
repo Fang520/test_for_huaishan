@@ -5,7 +5,7 @@
 #include "http2.h"
 #include "token.h"
 #include "msg_ask.h"
-#include "msg_downchannle.h"
+#include "msg_downchannel.h"
 #include "msg_sync_state.h"
 
 static pthread_t pid_thread = 0;
@@ -26,7 +26,7 @@ static void on_data(char* data, int len)
     sn++;
 }
 
-static void http2_cb(char* type, int sid, char* data, int len)
+static void http2_cb(int type, int sid, char* data, int len)
 {
     if (type == EVENT_TYPE_INIT)
     {
@@ -52,18 +52,12 @@ static void http2_cb(char* type, int sid, char* data, int len)
     }
 }
 
-static void start_connection(char* ip, int port)
+static void thread()
 {
-    get_token();
-    http2_create(ip, port, http2_cb);
-    start_thread(thread);
-}
-
-static void stop_connection()
-{
-    quit_flag = 1;
-    wait_for_safe_close();
-    http2_destroy();
+    while (quit_flag == 0)
+    {
+        http2_run();
+    }
 }
 
 static void start_thread()
@@ -71,17 +65,23 @@ static void start_thread()
     pthread_create(&pid_thread, 0, (void*)thread, 0);
 }
 
+static void start_connection(char* ip, int port)
+{
+    get_token();
+    http2_create(ip, port, http2_cb);
+    start_thread();
+}
+
 static void wait_for_safe_close()
 {
     pthread_join(pid_thread, 0);
 }
 
-static void thread()
+static void stop_connection()
 {
-    while (quit_flag == 0)
-    {
-        http2_run();
-    }
+    quit_flag = 1;
+    wait_for_safe_close();
+    http2_destroy();
 }
 
 static char* load_pcm(char* name, int* len)
@@ -104,7 +104,7 @@ static char* load_pcm(char* name, int* len)
 static void test()
 {
     int len;
-    char* buf = load_pcm('test.pcm', &len);
+    char* buf = load_pcm("test.pcm", &len);
     msg_ask_send(buf, len);
     free(buf);
 }
@@ -116,11 +116,8 @@ int main(int argc, char** argv)
     {
         char c = getchar();
         printf("input: %c\n", c);
-        switch (c)
-        {
-            case '1': test();
-            case 'q': break;
-        }
+        if (c == 'q')
+            break;
     }
     stop_connection();
     printf("quit\n");

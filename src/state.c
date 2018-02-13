@@ -3,15 +3,7 @@
 
 static char buf[2048];
 
-char* get_all_state_json_string()
-{
-	char* str1 = get_alerts_state_json_string();
-	char* str2 = get_volume_state_json_string();
-	sprintf(buf, "\"context\": [%s,%s]", str1, str2);
-	return buf;
-}
-
-char* get_alerts_state_json_string(char* token, char* type, int time, char* token_act, char* type_act, int time_act)
+char* get_alerts_state_json_string()
 {
 	char* json =	"{"
 					"\"header\": {"
@@ -39,6 +31,14 @@ char* get_volume_state_json_string()
 					"}"
 					"}";
 	return json;
+}
+
+char* get_all_state_json_string()
+{
+	char* str1 = get_alerts_state_json_string();
+	char* str2 = get_volume_state_json_string();
+	sprintf(buf, "\"context\": [%s,%s]", str1, str2);
+	return buf;
 }
 
 

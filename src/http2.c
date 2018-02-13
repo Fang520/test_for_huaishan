@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <arpa/inet.h>
 #include <poll.h>
 #include <errno.h>
 
@@ -39,7 +41,7 @@ static ssize_t send_callback(nghttp2_session *session, const uint8_t *data, size
     ret = SSL_write(ssl, data, (int)length);
     if (ret <= 0)
     {
-        int err = SSL_get_error(ssl, rv);
+        int err = SSL_get_error(ssl, ret);
         if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
             ret = NGHTTP2_ERR_WOULDBLOCK;
         else
@@ -55,7 +57,7 @@ static ssize_t recv_callback(nghttp2_session *session, uint8_t *buf, size_t leng
     ret = SSL_read(ssl, buf, (int)length);
     if (ret < 0)
     {
-        int err = SSL_get_error(connection->ssl, rv);
+        int err = SSL_get_error(ssl, ret);
         if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
             ret = NGHTTP2_ERR_WOULDBLOCK;
         else
@@ -69,7 +71,7 @@ static ssize_t recv_callback(nghttp2_session *session, uint8_t *buf, size_t leng
 static int frame_recv_callback(nghttp2_session *session, const nghttp2_frame *frame, void *user_data)
 {
     verbose_recv_frame(session, frame);
-    if (frame->hd.type == NGHTTP2_SETTINGS && frame->hd.flags = 0x01)
+    if (frame->hd.type == NGHTTP2_SETTINGS && frame->hd.flags == 0x01)
     {
         user_callback(EVENT_TYPE_INIT, frame->hd.stream_id, 0, 0);
     }
@@ -118,7 +120,7 @@ static ssize_t body_adapter_read_callback(nghttp2_session *session, int32_t stre
     else
         copy_len = length;
 
-    memcpy(buf, adapter->data + adapter->pos, copy_len);
+    memcpy(buf, adapter->body + adapter->pos, copy_len);
     adapter->pos += copy_len;
 
     return copy_len;
@@ -127,13 +129,13 @@ static ssize_t body_adapter_read_callback(nghttp2_session *session, int32_t stre
 static body_adapter_t* body_adapter(char* data, int len)
 {
     static body_adapter_t adapter;
-    adapter->body = data;
-    adapter->len = len;
-    adapter->pos = 0;    
+    adapter.body = data;
+    adapter.len = len;
+    adapter.pos = 0;    
     return &adapter;
 }
 
-int http2_send_msg(http2_head_t[] head, int head_len, char* body, int body_len)
+int http2_send_msg(http2_head_t* head, int head_len, char* body, int body_len)
 {
     int sid;
     
@@ -152,11 +154,11 @@ int http2_send_msg(http2_head_t[] head, int head_len, char* body, int body_len)
         nghttp2_data_provider raw_body;
         raw_body.source.ptr = (void*)body_adapter(body, body_len);
         raw_body.read_callback = body_adapter_read_callback;
-        sid = nghttp2_submit_request(session, 0, raw_head, head->count, &raw_body, 0);
+        sid = nghttp2_submit_request(session, 0, raw_head, head_len, &raw_body, 0);
     }
     else
     {
-        sid = nghttp2_submit_request(session, 0, raw_head, head->count, 0, 0);
+        sid = nghttp2_submit_request(session, 0, raw_head, head_len, 0, 0);
     }
 
     free(raw_head);
