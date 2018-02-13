@@ -34,51 +34,36 @@ http2_cb_t user_callback;
 
 static ssize_t send_callback(nghttp2_session *session, const uint8_t *data, size_t length, int flags, void *user_data)
 {
-    int rv;
+    int ret;
     ERR_clear_error();
-    rv = SSL_write(ssl, data, (int)length);
-    if (rv <= 0)
+    ret = SSL_write(ssl, data, (int)length);
+    if (ret <= 0)
     {
         int err = SSL_get_error(ssl, rv);
         if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
-        {
-            connection->want_io =
-                (err == SSL_ERROR_WANT_READ ? WANT_READ : WANT_WRITE);
-            rv = NGHTTP2_ERR_WOULDBLOCK;
-        }
+            ret = NGHTTP2_ERR_WOULDBLOCK;
         else
-            rv = NGHTTP2_ERR_CALLBACK_FAILURE;
+            ret = NGHTTP2_ERR_CALLBACK_FAILURE;
     }
-    return rv;
+    return ret;
 }
 
-static ssize_t recv_callback(nghttp2_session *session, uint8_t *buf,
-                             size_t length, int flags, void *user_data)
+static ssize_t recv_callback(nghttp2_session *session, uint8_t *buf, size_t length, int flags, void *user_data)
 {
-    struct Connection *connection;
-    int rv;
-    connection = (struct Connection *)user_data;
-    connection->want_io = IO_NONE;
+    int ret;
     ERR_clear_error();
-    rv = SSL_read(connection->ssl, buf, (int)length);
-
-    if (rv < 0)
+    ret = SSL_read(ssl, buf, (int)length);
+    if (ret < 0)
     {
         int err = SSL_get_error(connection->ssl, rv);
-
         if (err == SSL_ERROR_WANT_WRITE || err == SSL_ERROR_WANT_READ)
-        {
-            connection->want_io =
-                (err == SSL_ERROR_WANT_READ ? WANT_READ : WANT_WRITE);
-            rv = NGHTTP2_ERR_WOULDBLOCK;
-        }
+            ret = NGHTTP2_ERR_WOULDBLOCK;
         else
-            rv = NGHTTP2_ERR_CALLBACK_FAILURE;
+            ret = NGHTTP2_ERR_CALLBACK_FAILURE;
     }
-    else if (rv == 0)
-        rv = NGHTTP2_ERR_EOF;
-
-    return rv;
+    else if (ret == 0)
+        ret = NGHTTP2_ERR_EOF;
+    return ret;
 }
 
 static int frame_recv_callback(nghttp2_session *session, const nghttp2_frame *frame, void *user_data)
@@ -162,52 +147,66 @@ int http2_send_msg(http2_head_t[] head, int head_len, char* body, int body_len)
         raw_head[i].flags = NGHTTP2_NV_FLAG_NONE;
     }
 
-    nghttp2_data_provider raw_body;
-    raw_body.source.ptr = (void*)body_adapter(body, body_len);
-    raw_body.read_callback = body_adapter_read_callback;
-
-    sid = nghttp2_submit_request(session, 0, raw_head, head->count, &raw_body, 0);
+    if (body)
+    {
+        nghttp2_data_provider raw_body;
+        raw_body.source.ptr = (void*)body_adapter(body, body_len);
+        raw_body.read_callback = body_adapter_read_callback;
+        sid = nghttp2_submit_request(session, 0, raw_head, head->count, &raw_body, 0);
+    }
+    else
+    {
+        sid = nghttp2_submit_request(session, 0, raw_head, head->count, 0, 0);
+    }
 
     free(raw_head);
 
     return sid;
 }
 
-void http2_run()
+int http2_run()
 {
     fd_set fdset;
     struct timeval tv;
+    int ret;
 
     tv.tv_sec = 0;
     tv.tv_usec = 100000;
 
     if (nghttp2_session_want_write(session))
     {
-        rv = nghttp2_session_send(session);
-        if (rv != 0)
-            diec("nghttp2_session_send", rv);        
+        if (nghttp2_session_send(session) != 0)
+        {
+            printf("nghttp2_session_send fail\n");
+            return -1;
+        }
     }
 
     FD_ZERO(&fdset);
     FD_SET(sock, &fdset);
-    rv = select(sock + 1, &fdset, NULL, NULL, &tv);
-    if (rv < 0)
+    ret = select(sock + 1, &fdset, NULL, NULL, &tv);
+    if (ret < 0)
     {
-        diec("select fail", rv);
+        printf("select fail\n");
+        return -1;
     }
-    if (rv == 0)
+    else if (ret > 0)
     {
-        continue;            
+        if (nghttp2_session_recv(session) != 0)
+        {
+            printf("nghttp2_session_recv fail\n");
+            return -1;
+        }
     }
-    rv = nghttp2_session_recv(session);
-    if (rv != 0)
-        diec("nghttp2_session_recv", rv);
+
+    return 0;
 }
 
-void http2_create(http2_cb_t cb)
+void http2_create(char* ip, int port, http2_cb_t cb)
 {
     nghttp2_session_callbacks *callbacks;
-    int flags, val;
+    struct sockaddr_in addr;
+    int flags, val, ret;
 
     user_callback = cb;
 
@@ -221,9 +220,23 @@ void http2_create(http2_cb_t cb)
     ssl = SSL_new(ssl_ctx);
     
     sock = socket(AF_INET, SOCK_STREAM, 0);
-    connect(sock, rp->ai_addr, rp->ai_addrlen);
+
+    memset(&addr, 0, sizeof(struct sockaddr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = inet_addr(ip);
+    ret = connect(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr));
+    if (ret == -1)
+    {
+        printf("connect fail\n");
+    }
+    
     SSL_set_fd(ssl, sock);
-    SSL_connect(ssl);
+    ret = SSL_connect(ssl);
+    if (ret <= 0)
+    {
+        printf("SSL_connect fail\n");
+    }
 
     flags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);

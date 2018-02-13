@@ -12,9 +12,9 @@ typedef struct {
     char* value;
 } http2_head_t;
 
-void http2_create(http2_cb_t cb);
+void http2_create(char* ip, int port, http2_cb_t cb);
 void http2_destroy();
-void http2_run();
+int http2_run();
 int http2_send_msg(http2_head_t[] head, int head_len, char* body, int body_len);
 
 #endif

@@ -2,8 +2,8 @@ CC=gcc
 CFLAGS=-g -Wall
 LIBS=-lnghttp2 -lssl -lcrypto -lpthread
 DEFS=
-INCS=-Iinclude
-SRCS=src/*.c main.c
+INCS=-Isrc
+SRCS=src/*.c
 OBJS=$(patsubst %.c,%.o,$(wildcard $(SRCS)))
 TARGET=avs_test
 

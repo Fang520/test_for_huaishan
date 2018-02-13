@@ -52,10 +52,10 @@ static void http2_cb(char* type, int sid, char* data, int len)
     }
 }
 
-static void start_connection()
+static void start_connection(char* ip, int port)
 {
     get_token();
-    http2_create(http2_cb);
+    http2_create(ip, port, http2_cb);
     start_thread(thread);
 }
 
@@ -111,7 +111,7 @@ static void test()
 
 int main(int argc, char** argv)
 {
-    start_connection();
+    start_connection("54.239.21.157", 443);
     while (1)
     {
         char c = getchar();
