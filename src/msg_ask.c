@@ -5,9 +5,9 @@
 #include "state.h"
 #include "msg_ask.h"
 
-static char buf[1024000];
+static uint8_t buf[1024000];
 
-int msg_ask_send(char* pcm_buf, int pcm_len)
+int msg_ask_send(uint8_t* pcm_buf, int pcm_len)
 {
     http2_head_t head[5];
     head[0].name = ":method";

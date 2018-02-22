@@ -25,7 +25,7 @@
 
 typedef struct
 {
-    char* body;
+    uint8_t* body;
     int len;
     int pos;
 } body_adapter_t;
@@ -128,7 +128,7 @@ static ssize_t body_adapter_read_callback(nghttp2_session *session, int32_t stre
     return copy_len;
 }
 
-static body_adapter_t* body_adapter(char* data, int len)
+static body_adapter_t* body_adapter(uint8_t* data, int len)
 {
     static body_adapter_t adapter;
     adapter.body = data;
@@ -137,7 +137,7 @@ static body_adapter_t* body_adapter(char* data, int len)
     return &adapter;
 }
 
-int http2_send_msg(http2_head_t* head, int head_len, char* body, int body_len)
+int http2_send_msg(http2_head_t* head, int head_len, uint8_t* body, int body_len)
 {
     int sid;
     

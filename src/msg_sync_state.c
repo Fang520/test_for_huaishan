@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
 #include "http2.h"
 #include "token.h"
 #include "state.h"
 #include "msg_sync_state.h"
 
-static char buf[102400];
+static uint8_t buf[102400];
 
 int msg_sync_state_send()
 {
