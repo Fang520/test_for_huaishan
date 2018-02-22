@@ -28,7 +28,7 @@ int proxy_port()
     return 8080;
 }
 
-int establish_proxy(int sockfd, char* ip, int port)
+int establish_proxy(int sockfd, const char* ip, int port)
 {
     int n;
     

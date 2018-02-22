@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
-#include <stdint.h>
 #include "http2.h"
 #include "token.h"
 #include "msg_ask.h"
@@ -14,7 +13,7 @@ static pthread_t pid_thread = 0;
 static int quit_flag = 0;
 static int sid_downchannel = 0;
 
-static void on_data(uint8_t* data, int len)
+static void on_data(const char* data, int len)
 {
     static int sn = 0;
     char name[32];
@@ -28,7 +27,7 @@ static void on_data(uint8_t* data, int len)
     sn++;
 }
 
-static void http2_cb(int type, int sid, uint8_t* data, int len)
+static void http2_cb(int type, int sid, const char* data, int len)
 {
     if (type == EVENT_TYPE_INIT)
     {
@@ -103,7 +102,7 @@ static char* load_pcm(char* name, int* len)
 static void test()
 {
     int len;
-    uint8_t* buf = load_pcm("test.pcm", &len);
+    char* buf = load_pcm("test.pcm", &len);
     msg_ask_send(buf, len);
     free(buf);
 }
