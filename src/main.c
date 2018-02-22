@@ -123,6 +123,8 @@ int main(int argc, char** argv)
     {
         char c = getchar();
         printf("input: %c\n", c);
+        if (c == '1')
+            test();
         if (c == 'q')
             break;
     }
