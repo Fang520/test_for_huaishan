@@ -5,35 +5,35 @@ static char buf[2048];
 
 char* get_alerts_state_json_string()
 {
-	char* json =	"{"
-					"\"header\": {"
-					"\"namespace\": \"Alerts\","
-					"\"name\": \"AlertsState\""
-					"},"
-					"\"payload\": {"
-					"\"allAlerts\": [],"
-					"\"activeAlerts\": []"
-					"}"
-					"}";
+  char* json =  "{"
+                  "\"header\": {"
+                    "\"namespace\": \"Alerts\","
+                    "\"name\": \"AlertsState\""
+                  "},"
+                  "\"payload\": {"
+                    "\"allAlerts\": [],"
+                    "\"activeAlerts\": []"
+                  "}"
+                "}";
 	return json;
 }
 
 char* get_volume_state_json_string()
 {
-	char* json =	"{"
-					"\"header\": {"
-					"\"namespace\": \"Speaker\","
-					"\"name\": \"SpeakerState\""
-					"},"
-					"\"payload\": {"
-					"\"volume\": 50,"
-					"\"muted\": false"
-					"}"
-					"}";
+  char* json =  "{"
+                  "\"header\": {"
+                    "\"namespace\": \"Speaker\","
+                    "\"name\": \"SpeakerState\""
+                  "},"
+                  "\"payload\": {"
+                    "\"volume\": 50,"
+                    "\"muted\": false"
+                  "}"
+                "}";
 	return json;
 }
 
-char* get_all_state_json_string()
+char* get_state_json()
 {
 	char* str1 = get_alerts_state_json_string();
 	char* str2 = get_volume_state_json_string();

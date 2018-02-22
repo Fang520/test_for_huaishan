@@ -21,25 +21,23 @@ int msg_sync_state_send()
     head[4].name = "authorization";
     head[4].value = get_token();
 
-    char* s1 = "--uniview-boundary\n"
-                 "Content-Disposition: form-data; name=\"metadata\"\n"
-                 "Content-Type: application/json; charset=UTF-8\n\n";
-    char* s2 = "--uniview-boundary--";
-
-	char* event_json =  "\"event\": {"
-					    "\"header\": {"
-					    "\"namespace\": \"System\","
-					    "\"name\": \"SynchronizeState\","
-					    "\"messageId\": \"api_system_sync_state\""
-					    "},"
-					    "\"payload\": {"
-					    "}"
-					    "}";
-
-	char* state_json = get_all_state_json_string();
+    char* boundary_begin = "--uniview-boundary\n";
+    char* boundary_end = "--uniview-boundary--";
+    char* boundary_head = "Content-Disposition: form-data; name=\"metadata\"\n"
+                          "Content-Type: application/json; charset=UTF-8\n\n";
+	char* event_json = "\"event\": {"
+					     "\"header\": {"
+					       "\"namespace\": \"System\","
+					       "\"name\": \"SynchronizeState\","
+					       "\"messageId\": \"api_system_sync_state\""
+					     "},"
+					     "\"payload\": {"
+					     "}"
+					   "}";
+	char* state_json = get_state_json();
 
     memset(buf, 0, sizeof(buf));
-    sprintf(buf, "%s{%s,%s}%s", s1, event_json, state_json, s2);
+    sprintf(buf, "%s%s{%s,%s}%s", boundary_begin, boundary_head, event_json, state_json, boundary_head);
 	
     return http2_send_msg(head, 5, buf, strlen(buf));
 }

@@ -7,10 +7,13 @@
 #include <arpa/inet.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include "proxy.h"
 #include "token.h"
 
 const char* DEST_IP = "54.239.29.128";
 const int DEST_PORT = 443;
+const char* PROXY_IP = "87.254.212.121";
+const int PROXY_PORT = 8080;
 const char* REQUEST = "POST /auth/O2/token HTTP/1.1\r\n"
                       "Host: api.amazon.com\r\n"
                       "Content-Length: 737\r\n"
@@ -44,8 +47,8 @@ char* get_token()
 
     struct sockaddr_in dest_addr;
     dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(DEST_PORT);
-    dest_addr.sin_addr.s_addr = inet_addr(DEST_IP);
+    dest_addr.sin_port = htons(PROXY_PORT);
+    dest_addr.sin_addr.s_addr = inet_addr(PROXY_IP);
     memset(&(dest_addr.sin_zero), '\0', 8);
 
     int status = connect(sockfd, (struct sockaddr*) &dest_addr, sizeof(struct sockaddr_in));
@@ -53,6 +56,13 @@ char* get_token()
     if (status == -1)
     {
         perror("Unable to connect to the server");
+        close(sockfd);
+        return 0;
+    }
+
+    if (proxy(sockfd, DEST_IP, DEST_PORT) == -1)
+    {
+        perror("proxy error");
         close(sockfd);
         return 0;
     }
@@ -111,6 +121,8 @@ char* get_token()
 
     memcpy(p1 - 7, "Bearer ", 7);
     token = p1 - 7;
+
+    printf("===== got token\n");
 
     return p1 - 7;
 }
