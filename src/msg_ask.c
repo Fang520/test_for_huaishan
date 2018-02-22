@@ -24,7 +24,7 @@ int msg_ask_send(char* pcm_buf, int pcm_len)
     char* boundary_head_1 = "--uniview-boundary\n"
                             "Content-Disposition: form-data; name=\"metadata\"\n"
                             "Content-Type: application/json; charset=UTF-8\n\n";
-    char* boundary_head_2 = "--uniview-boundary\n"
+    char* boundary_head_2 = "\n--uniview-boundary\n"
                             "Content-Disposition: form-data; name=\"audio\"\n"
                             "Content-Type: application/octet-stream\n\n";
     char* boundary_end = "--uniview-boundary--";
@@ -43,7 +43,7 @@ int msg_ask_send(char* pcm_buf, int pcm_len)
     char* state_json = get_state_json();
 
     memset(buf, 0, sizeof(buf));
-    sprintf(buf, "%s{%s,%s}\n%s", boundary_head_1, event_json, state_json, boundary_head_2);
+    sprintf(buf, "%s{%s,%s}%s", boundary_head_1, event_json, state_json, boundary_head_2);
     int len1 = strlen(buf);
     memcpy(buf + len1, pcm_buf, pcm_len);
     int len2 = sprintf(buf + len1 + pcm_len, "%s", boundary_end);

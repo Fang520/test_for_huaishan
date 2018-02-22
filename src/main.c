@@ -42,10 +42,6 @@ static void http2_cb(int type, int sid, char* data, int len)
                 msg_sync_state_send();
             }
         }
-        else
-        {
-            quit_flag = 1;
-        }
     }
     else if (type == EVENT_TYPE_DATA)
     {
@@ -92,8 +88,9 @@ static char* load_pcm(char* name, int* len)
     FILE* fp = fopen(name, "rb");
     if (fp)
     {
+        fseek(fp, 0, SEEK_END);
         size = ftell(fp);
-        rewind(fp);
+        fseek(fp, 0, SEEK_SET);
         buf = (char*)malloc(size);
         fread(buf, 1, size, fp);
         fclose(fp);

@@ -133,7 +133,7 @@ char* get_token()
     memcpy(p1 - 7, "Bearer ", 7);
     token = p1 - 7;
 
-    printf("===== got token\n");
+    printf("got token\n");
 
     return p1 - 7;
 }
