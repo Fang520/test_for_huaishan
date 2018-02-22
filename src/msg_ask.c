@@ -21,29 +21,29 @@ int msg_ask_send(const char* pcm_buf, int pcm_len)
     head[4].name = "authorization";
     head[4].value = get_token();
 
-    char* boundary_head_1 = "--uniview-boundary\n"
-                            "Content-Disposition: form-data; name=\"metadata\"\n"
-                            "Content-Type: application/json; charset=UTF-8\n\n";
-    char* boundary_head_2 = "\n--uniview-boundary\n"
-                            "Content-Disposition: form-data; name=\"audio\"\n"
-                            "Content-Type: application/octet-stream\n\n";
-    char* boundary_end = "--uniview-boundary--";
-    char* event_json =  "\"event\": {"
-                        "\"header\": {"
-                          "\"dialogRequestId\": \"avs-dialog-id-1502547094-1\","
-                          "\"namespace\": \"SpeechRecognizer\","
-                          "\"name\": \"Recognize\","
-                          "\"messageId\": \"api_speech_recognizer\""
-                        "},"
-                        "\"payload\": {"
-                          "\"profile\": \"NEAR_FIELD\","
-                          "\"format\": \"AUDIO_L16_RATE_16000_CHANNELS_1\""
-                        "}"
-                      "}";					   
+    char* boundary_1 = "\n--uniview-boundary\n"
+                       "Content-Disposition: form-data; name=\"metadata\"\n"
+                       "Content-Type: application/json; charset=UTF-8\n\n";
+    char* boundary_2 = "\n--uniview-boundary\n"
+                       "Content-Disposition: form-data; name=\"audio\"\n"
+                       "Content-Type: application/octet-stream\n\n";
+    char* boundary_end = "\n--uniview-boundary--";
+    char* event_json = "\"event\": {"
+                         "\"header\": {"
+                           "\"dialogRequestId\": \"avs-dialog-id-1502547094-1\","
+                           "\"namespace\": \"SpeechRecognizer\","
+                           "\"name\": \"Recognize\","
+                           "\"messageId\": \"api_speech_recognizer\""
+                         "},"
+                         "\"payload\": {"
+                           "\"profile\": \"NEAR_FIELD\","
+                           "\"format\": \"AUDIO_L16_RATE_16000_CHANNELS_1\""
+                         "}"
+                       "}";					   
     char* state_json = get_state_json();
 
     memset(buf, 0, sizeof(buf));
-    sprintf(buf, "%s{%s,%s}%s", boundary_head_1, event_json, state_json, boundary_head_2);
+    sprintf(buf, "%s{%s,%s}%s", boundary_1, event_json, state_json, boundary_2);
     int len1 = strlen(buf);
     memcpy(buf + len1, pcm_buf, pcm_len);
     int len2 = sprintf(buf + len1 + pcm_len, "%s", boundary_end);

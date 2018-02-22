@@ -25,7 +25,7 @@
 
 typedef struct
 {
-    char * body;
+    const char* body;
     int len;
     int pos;
 } body_adapter_t;
@@ -82,7 +82,7 @@ static int frame_recv_callback(nghttp2_session *session, const nghttp2_frame *fr
 
 static int data_chunk_recv_callback(nghttp2_session *session, uint8_t flags, int32_t stream_id, const uint8_t *data, size_t len, void *user_data)
 {
-    user_callback(EVENT_TYPE_DATA, stream_id, data, len);
+    user_callback(EVENT_TYPE_DATA, stream_id, (char*)data, len);
     return 0;
 }
 
@@ -95,9 +95,9 @@ static int stream_close_callback(nghttp2_session *session, int32_t stream_id, ui
 static int header_callback(nghttp2_session *session, const nghttp2_frame *frame, const uint8_t *name, size_t namelen, const uint8_t *value, size_t valuelen, uint8_t flags, void *user_data)
 {
     verbose_header(session, frame, name, namelen, value, valuelen, flags, user_data);
-    if (strncasecmp(name, ":status", namelen) == 0)
+    if (strncasecmp((char*)name, ":status", namelen) == 0)
     {
-        user_callback(EVENT_TYPE_RESP_CODE, frame->hd.stream_id, value, valuelen);
+        user_callback(EVENT_TYPE_RESP_CODE, frame->hd.stream_id, (char*)value, valuelen);
     }
     return 0;
 }
@@ -144,9 +144,9 @@ int http2_send_msg(http2_head_t* head, int head_len, const char* body, int body_
     nghttp2_nv* raw_head = (nghttp2_nv*)malloc(sizeof(nghttp2_nv) * head_len);
     for (int i=0; i<head_len; i++)
     {
-        raw_head[i].name = head[i].name;
+        raw_head[i].name = (uint8_t*)head[i].name;
         raw_head[i].namelen = strlen(head[i].name);
-        raw_head[i].value = head[i].value;
+        raw_head[i].value = (uint8_t*)head[i].value;
         raw_head[i].valuelen = strlen(head[i].value);
         raw_head[i].flags = NGHTTP2_NV_FLAG_NONE;
     }
