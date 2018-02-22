@@ -7,6 +7,7 @@
 #include "msg_ask.h"
 #include "msg_downchannel.h"
 #include "msg_sync_state.h"
+#include "proxy.h"
 
 static pthread_t pid_thread = 0;
 static int quit_flag = 0;
@@ -111,7 +112,13 @@ static void test()
 
 int main(int argc, char** argv)
 {
+    if (argc > 1 && strstr(argv[1], "proxy"))
+    {
+        enable_proxy();
+    }
+
     start_connection("54.239.21.157", 443);
+
     while (1)
     {
         char c = getchar();

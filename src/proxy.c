@@ -6,14 +6,35 @@
 
 #define BUF_SIZE 1024
 static char buf[BUF_SIZE]; 
+static int proxy_flag = 0;
 
-int proxy(int sockfd, char* ip, int port)
+void enable_proxy()
+{
+    proxy_flag = 1;
+}
+
+int proxy_enabled()
+{
+    return proxy_flag;
+}
+
+char* proxy_ip()
+{
+    return "87.254.212.121";
+}
+
+int proxy_port()
+{
+    return 8080;
+}
+
+int establish_proxy(int sockfd, char* ip, int port)
 {
     int n;
     
     memset(buf, 0, BUF_SIZE);
 
-    sprintf(buf, "CONNECT %s:%s HTTP/1.1\r\n\r\n", ip, port);
+    sprintf(buf, "CONNECT %s:%d HTTP/1.1\r\n\r\n", ip, port);
     if (send(sockfd, buf, strlen(buf), 0) == -1)
     {
         printf("proxy send error\n");

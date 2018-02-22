@@ -47,8 +47,16 @@ char* get_token()
 
     struct sockaddr_in dest_addr;
     dest_addr.sin_family = AF_INET;
-    dest_addr.sin_port = htons(PROXY_PORT);
-    dest_addr.sin_addr.s_addr = inet_addr(PROXY_IP);
+    if (proxy_enabled())
+    {
+        dest_addr.sin_port = htons(proxy_port());
+        dest_addr.sin_addr.s_addr = inet_addr(proxy_ip());
+    }
+    else
+    {
+        dest_addr.sin_port = htons(DEST_PORT);
+        dest_addr.sin_addr.s_addr = inet_addr(DEST_IP);
+    }
     memset(&(dest_addr.sin_zero), '\0', 8);
 
     int status = connect(sockfd, (struct sockaddr*) &dest_addr, sizeof(struct sockaddr_in));
@@ -60,11 +68,14 @@ char* get_token()
         return 0;
     }
 
-    if (proxy(sockfd, DEST_IP, DEST_PORT) == -1)
+    if (proxy_enabled())
     {
-        perror("proxy error");
-        close(sockfd);
-        return 0;
+        if (establish_proxy(sockfd, DEST_IP, DEST_PORT) == -1)
+        {
+            perror("proxy error");
+            close(sockfd);
+            return 0;
+        }
     }
 
     SSL *conn = SSL_new(ssl_ctx);

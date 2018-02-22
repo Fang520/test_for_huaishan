@@ -227,17 +227,28 @@ void http2_create(char* ip, int port, http2_cb_t cb)
 
     memset(&addr, 0, sizeof(struct sockaddr));
     addr.sin_family = AF_INET;
-    addr.sin_port = htons(8080);
-    addr.sin_addr.s_addr = inet_addr("87.254.212.121");
+    if (proxy_enabled())
+    {
+        addr.sin_port = htons(proxy_port());
+        addr.sin_addr.s_addr = inet_addr(proxy_ip());
+    }
+    else
+    {
+        addr.sin_port = htons(port);
+        addr.sin_addr.s_addr = inet_addr(ip);
+    }
     ret = connect(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr));
     if (ret == -1)
     {
         printf("connect fail\n");
     }
 
-    if (proxy(sock, ip, port) == -1)
+    if (proxy_enabled())
     {
-        printf("proxy fail\n");
+        if (establish_proxy(sock, ip, port) == -1)
+        {
+            printf("proxy fail\n");
+        }
     }
     
     SSL_set_fd(ssl, sock);
