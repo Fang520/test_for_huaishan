@@ -89,6 +89,7 @@ static int data_chunk_recv_callback(nghttp2_session *session, uint8_t flags, int
 static int stream_close_callback(nghttp2_session *session, int32_t stream_id, uint32_t error_code, void *user_data)
 {
     verbose_stream_close(session, stream_id, error_code);
+    user_callback(EVENT_TYPE_CLOSE, stream_id, 0, 0);
     return 0;
 }
 
@@ -166,6 +167,11 @@ int http2_send_msg(http2_head_t* head, int head_len, const char* body, int body_
     free(raw_head);
 
     return sid;
+}
+
+void http2_send_close_msg()
+{
+    nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
 }
 
 int http2_run()
@@ -278,7 +284,6 @@ void http2_create(char* ip, int port, http2_cb_t cb)
 
 void http2_destroy()
 {
-    nghttp2_session_terminate_session(session, NGHTTP2_NO_ERROR);
     nghttp2_session_del(session);
     SSL_shutdown(ssl);
     SSL_free(ssl);

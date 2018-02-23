@@ -35,7 +35,7 @@ static void http2_cb(int type, int sid, const char* data, int len)
     }
     else if (type == EVENT_TYPE_RESP_CODE)
     {
-        if (strncmp(data, "200", len) == 0)
+        if (strncmp(data, "200", len) == 0 || strncmp(data, "204", len) == 0)
         {
             if (sid == sid_downchannel)
             {
@@ -46,6 +46,13 @@ static void http2_cb(int type, int sid, const char* data, int len)
     else if (type == EVENT_TYPE_DATA)
     {
         on_data(data, len);
+    }
+    else if (type == EVENT_TYPE_CLOSE)
+    {
+        if (sid == sid_downchannel)
+        {
+            quit_flag = 1;
+        }
     }
 }
 
@@ -76,7 +83,7 @@ static void wait_for_safe_close()
 
 static void stop_connection()
 {
-    quit_flag = 1;
+    http2_send_close_msg();
     wait_for_safe_close();
     http2_destroy();
 }
