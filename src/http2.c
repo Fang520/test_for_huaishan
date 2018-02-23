@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -105,7 +106,7 @@ static int header_callback(nghttp2_session *session, const nghttp2_frame *frame,
     {
         char* anchor1 = "boundary=";
         char archor2 = ';';
-        char* p1 = memmem((char*)value, valuelen, anchor1, strlen(anchor1)));
+        char* p1 = memmem((char*)value, valuelen, anchor1, strlen(anchor1));
         if (p1)
         {
             p1 += strlen(anchor1);

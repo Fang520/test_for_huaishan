@@ -63,7 +63,6 @@ static void http2_cb(int type, int sid, const char* data, int len)
         char str[256];
         strncpy(str, data, len);
         str[len] = '\0';
-        printf("==== %s\n", str);
         parse_sm_set_boundary(str);
     }
 }
@@ -139,7 +138,6 @@ int main(int argc, char** argv)
     while (1)
     {
         char c = getchar();
-        printf("input: %c\n", c);
         if (c == '1')
             test();
         if (c == 'q')

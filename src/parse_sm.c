@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -20,9 +21,9 @@ void parse_sm_run(const char* data, int len)
         if (p)
         {
             char name[32];
-            sprintf(name, "audio_%d.mp3", time(0));
+            sprintf(name, "audio_%d.mp3", (int)time(0));
             audio_fp = fopen(name, "wb");
-            state == STATE_AUDIO;
+            state = STATE_AUDIO;
             p += archor_len;
             parse_sm_run(p, len - (p - data));
         }
