@@ -33,7 +33,7 @@ typedef struct
 static SSL_CTX *ssl_ctx;
 static SSL *ssl;
 static nghttp2_session *session;
-static int sock;
+static int sockfd;
 http2_cb_t user_callback;
 
 static ssize_t send_callback(nghttp2_session *session, const uint8_t *data, size_t length, int flags, void *user_data)
@@ -187,8 +187,8 @@ int http2_run()
     }
 
     FD_ZERO(&fdset);
-    FD_SET(sock, &fdset);
-    ret = select(sock + 1, &fdset, NULL, NULL, &tv);
+    FD_SET(sockfd, &fdset);
+    ret = select(sockfd + 1, &fdset, NULL, NULL, &tv);
     if (ret < 0)
     {
         printf("select fail\n");
@@ -223,9 +223,9 @@ void http2_create(char* ip, int port, http2_cb_t cb)
     SSL_CTX_set_next_proto_select_cb(ssl_ctx, select_next_proto_cb, 0);    
     ssl = SSL_new(ssl_ctx);
     
-    sock = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-    memset(&addr, 0, sizeof(struct sockaddr));
+    memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     if (proxy_enabled())
     {
@@ -237,7 +237,7 @@ void http2_create(char* ip, int port, http2_cb_t cb)
         addr.sin_port = htons(port);
         addr.sin_addr.s_addr = inet_addr(ip);
     }
-    ret = connect(sock, (struct sockaddr *)&addr, sizeof(struct sockaddr));
+    ret = connect(sockfd, (struct sockaddr*)&addr, sizeof(addr));
     if (ret == -1)
     {
         printf("connect fail\n");
@@ -245,23 +245,23 @@ void http2_create(char* ip, int port, http2_cb_t cb)
 
     if (proxy_enabled())
     {
-        if (establish_proxy(sock, ip, port) == -1)
+        if (establish_proxy(sockfd, ip, port) == -1)
         {
             printf("proxy fail\n");
         }
     }
     
-    SSL_set_fd(ssl, sock);
+    SSL_set_fd(ssl, sockfd);
     ret = SSL_connect(ssl);
     if (ret <= 0)
     {
         printf("SSL_connect fail\n");
     }
 
-    flags = fcntl(sock, F_GETFL, 0);
-    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+    flags = fcntl(sockfd, F_GETFL, 0);
+    fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
     val = 1;
-    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &val, (socklen_t)sizeof(val));
+    setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &val, (socklen_t)sizeof(val));
 
     nghttp2_session_callbacks_new(&callbacks);
     nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
@@ -283,7 +283,7 @@ void http2_destroy()
     SSL_shutdown(ssl);
     SSL_free(ssl);
     SSL_CTX_free(ssl_ctx);
-    shutdown(sock, SHUT_WR);
-    close(sock);
+    shutdown(sockfd, SHUT_WR);
+    close(sockfd);
 }
 
