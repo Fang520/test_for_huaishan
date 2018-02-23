@@ -17,9 +17,6 @@ static char* head          = "POST /auth/O2/token HTTP/1.1\r\n"
                              "Content-Length: 737\r\n"
                              "Content-Type: application/x-www-form-urlencoded\r\n\r\n";
 static char* body          = "client_secret=4728a27034104095d2c959a3980f6782941386f352692131b22562aeee87b7a6&grant_type=refresh_token&refresh_token=Atzr%7CIwEBIHQqL8L3UCU4veFSosf94GuJCUhysYHN8UL_qNXme9QipOnbVfnGjKlkoenwVkmFSKfHZOwi-NDWWzgu6HDk0MzIoL-rYZsNVzrmdhQQ9fRnkTIiXRFo5hwDV3hYpevhHUaV_CRjzTrA3Pc-RUQsv6Qde7LzjJTs4Y1q8nol8BIEPZx1OozyGxBkTzn8yafyKDLpR20IxXnRvCAKYy0pHx-a9QwW3krcmV4A9NK9UptuqFe_cfCVMYgLaV4MFQAUdgN6G4FLjEKGy0E2wwzJgNxNVn-84v_gUC1YI_DeW6TWPhVHV8vUmBAEsIfv-wGHotNolSXb2EmQZLkBWRT8Bd8BTWHob728CVX5rE8JnBG9myTQNcxed2y3io-YM93gCwrKlAJ4aNYhUN19WtGEu9d0cvWdiSBo0RTPUJUmxy_t72-eriBsby--kozloCbn47YEYUcnoVwzhcy_6qquMuZkvqOHD1sTAI5RIk95H-ZW3rEq4CufuSmhnzrLJQvh_iy4l4JsyOz5iRrR7t4SVgW-&client_id=amzn1.application-oa2-client.3d7b8ee6e47b40aeb2ecfcd3c7c26c3b";
-static char* client_id     = "amzn1.application-oa2-client.3d7b8ee6e47b40aeb2ecfcd3c7c26c3b";
-static char* client_secret = "4728a27034104095d2c959a3980f6782941386f352692131b22562aeee87b7a6";
-static char* refresh_token = "Atzr|IwEBIHQqL8L3UCU4veFSosf94GuJCUhysYHN8UL_qNXme9QipOnbVfnGjKlkoenwVkmFSKfHZOwi-NDWWzgu6HDk0MzIoL-rYZsNVzrmdhQQ9fRnkTIiXRFo5hwDV3hYpevhHUaV_CRjzTrA3Pc-RUQsv6Qde7LzjJTs4Y1q8nol8BIEPZx1OozyGxBkTzn8yafyKDLpR20IxXnRvCAKYy0pHx-a9QwW3krcmV4A9NK9UptuqFe_cfCVMYgLaV4MFQAUdgN6G4FLjEKGy0E2wwzJgNxNVn-84v_gUC1YI_DeW6TWPhVHV8vUmBAEsIfv-wGHotNolSXb2EmQZLkBWRT8Bd8BTWHob728CVX5rE8JnBG9myTQNcxed2y3io-YM93gCwrKlAJ4aNYhUN19WtGEu9d0cvWdiSBo0RTPUJUmxy_t72-eriBsby--kozloCbn47YEYUcnoVwzhcy_6qquMuZkvqOHD1sTAI5RIk95H-ZW3rEq4CufuSmhnzrLJQvh_iy4l4JsyOz5iRrR7t4SVgW-";
 static char* token_server_ip = "54.239.29.128";
 static int token_server_port = 443;
 static char* token = 0;
@@ -136,9 +133,9 @@ char* get_token()
 
     token = p1;
 
-    printf("got token: %s\n", token);
-
     clean();
+
+    printf("got token: %s\n", token);
 
     return token;
 }
