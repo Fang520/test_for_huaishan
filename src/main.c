@@ -7,6 +7,7 @@
 #include "msg_ask.h"
 #include "msg_downchannel.h"
 #include "msg_sync_state.h"
+#include "parse_sm.h"
 #include "proxy.h"
 
 static pthread_t pid_thread = 0;
@@ -15,6 +16,7 @@ static int sid_downchannel = 0;
 
 static void on_data(const char* data, int len)
 {
+/*
     static int sn = 0;
     char name[32];
     sprintf(name, "data_%d.txt", sn);
@@ -25,6 +27,8 @@ static void on_data(const char* data, int len)
         fclose(fp);
     }
     sn++;
+*/
+    parse_sm_run(data, len);
 }
 
 static void http2_cb(int type, int sid, const char* data, int len)
@@ -53,6 +57,14 @@ static void http2_cb(int type, int sid, const char* data, int len)
         {
             quit_flag = 1;
         }
+    }
+    else if (type == EVENT_TYPE_BOUNDARY)
+    {
+        char str[256];
+        strncpy(str, data, len);
+        str[len] = '\0';
+        printf("==== %s\n", str);
+        parse_sm_set_boundary(str);
     }
 }
 
@@ -85,6 +97,7 @@ static void stop_connection()
 {
     http2_send_close_msg();
     wait_for_safe_close();
+    parse_sm_clean();
     http2_destroy();
 }
 

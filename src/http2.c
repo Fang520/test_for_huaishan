@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -99,6 +100,18 @@ static int header_callback(nghttp2_session *session, const nghttp2_frame *frame,
     if (strncasecmp((char*)name, ":status", namelen) == 0)
     {
         user_callback(EVENT_TYPE_RESP_CODE, frame->hd.stream_id, (char*)value, valuelen);
+    }
+    else if (strncasecmp((char*)name, "content-type", namelen) == 0)
+    {
+        char* anchor1 = "boundary=";
+        char archor2 = ';';
+        char* p1 = memmem((char*)value, valuelen, anchor1, strlen(anchor1)));
+        if (p1)
+        {
+            p1 += strlen(anchor1);
+            char* p2 = strchr(p1, archor2);
+            user_callback(EVENT_TYPE_BOUNDARY, frame->hd.stream_id, (char*)p1, p2 - p1);    
+        }
     }
     return 0;
 }

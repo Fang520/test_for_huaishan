@@ -5,6 +5,8 @@
 #define EVENT_TYPE_DATA 1
 #define EVENT_TYPE_RESP_CODE 2
 #define EVENT_TYPE_CLOSE 3
+#define EVENT_TYPE_BOUNDARY 4
+
 
 typedef void (*http2_cb_t)(int type, int sid, const char* data, int len);
 
