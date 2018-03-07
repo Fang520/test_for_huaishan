@@ -121,7 +121,10 @@ static char* load_pcm(char* name, int* len)
 static void test()
 {
     int len;
-    char* buf = load_pcm("test.pcm", &len);
+    printf("press q to stop record...\n");
+    system("ffmpeg -hide_banner -loglevel quiet -y -f alsa -ac 1 -ar 16000 -sample_fmt s16 -i hw:0 ask.wav");
+    printf("record done\n");
+    char* buf = load_pcm("ask.wav", &len);
     msg_ask_send(buf, len);
     free(buf);
 }
