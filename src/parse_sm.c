@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include "parse_sm.h"
@@ -10,6 +11,7 @@
 static int state = STATE_IDLE;
 static FILE* audio_fp = 0;
 static char boundary[256] = {0};
+static char mp3_name[256] = {0};
 
 void parse_sm_run(const char* data, int len)
 {
@@ -20,9 +22,8 @@ void parse_sm_run(const char* data, int len)
         char* p = memmem(data, len, archor, archor_len);
         if (p)
         {
-            char name[32];
-            sprintf(name, "audio_%d.mp3", (int)time(0));
-            audio_fp = fopen(name, "wb");
+            sprintf(mp3_name, "audio_%d.mp3", (int)time(0));
+            audio_fp = fopen(mp3_name, "wb");
             state = STATE_AUDIO;
             p += archor_len;
             parse_sm_run(p, len - (p - data));
@@ -36,9 +37,12 @@ void parse_sm_run(const char* data, int len)
         {
             if (audio_fp)
             {
+                char cmd[256];
                 fwrite(data, 1, p - data, audio_fp);
                 fclose(audio_fp);
                 audio_fp = 0;
+                sprintf(cmd, "ffplay -hide_banner -autoexit -loglevel quiet ./%s &", mp3_name);
+                system(cmd);
             }
             state = STATE_IDLE;
             p += boundary_len;
